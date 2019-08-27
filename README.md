@@ -3,7 +3,7 @@
 
 
 
-![](bubble_commercial_A3.gif)
+![whatever](Demo/gif_cod_both.gif) ![whatever](Demo/gif_cod_commercial.gif)
 
 
 
