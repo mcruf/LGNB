@@ -1,24 +1,33 @@
 # LGNB
+
 **Welcome to the LGNB model GitHub repository!**
 
+If you have made it so far, this likely means that you are interested in seing how the LGNB model actually works and can be applied.
+Besides estimating and predicting the spatio-temporal abundance dynamics of marine harvested species, the LGNB framework includes a set of tools that can be used to evaluate and contrast the different models, such as GIFs below.
 
 
 ![whatever](Demo/gif_cod_both.gif) ![whatever](Demo/gif_cod_commercial.gif)
 
 
 
-If you've made it so far, this likely means that you are interested in seing how the LGNB model actually works and can be applied.
 It is therefore aimed to provide some basic guidence throughout the scripts that are used for the modelling aspect, and higlight some pitfalls that might lead to **dangerous** result interpretation or even model crashing if not properly addressed.
 
 Theoretical aspects of the model won't be discussed here, but more details can be found on [Bridging the gap between commercial fisheries and scientific survey data to model the spatio-temporal dynamics of harvested marine species](https://www.google.com).
 Note also that this is **not** an introduction to R nor C++ languages; hence, familiarity with both of them is expected from the user.
 
-As parameter estimates are done with Template Model Builder (TMB), the very first step is to ensure that it is properly installed in R. TMB depends on R version >=3.0.0 and a set of other tools.
 
-Please refer to the main webpage of [TMB](https://github.com/kaskr/adcomp/wiki/Download) to see the proper installation procedure according to your platform.
-
-
+***
 ## Getting started
+
+As parameter estimates are done with Template Model Builder (TMB), the very first step is to ensure that it is properly installed in R. TMB depends on R version >=3.0.0 and a set of other tools, and can be installed through the following command:
+
+```R
+install.packages("TMB")
+```
+
+If you are working on another OS than Windows, pelase refer to the main [TMB](https://github.com/kaskr/adcomp/wiki/Download) webpage to see the proper package installation according to your platform.
+
+***
 The model package is essentially composed by three main scripts, namely: *model.cpp*, *model.R*, and *utilities.R*. In the following each script is shortly commented.
 
 ### > model.cpp 
