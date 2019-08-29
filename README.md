@@ -42,7 +42,7 @@ This is where all data reading and remaining modelling aspects will occur, which
 Here several helper functions are gathered together,among them the cohort extraction function, the commercial-survey data binding function, and the TMB-adapted AIC function. 
 
 
-**Detailed guidance on each above commented script can be found on the [Wiki page](https://github.com/mcr89/ComSur_model/wiki).**
+**Detailed guidance on each above commented script can be found on the [Wiki page](https://github.com/mcr89/LGNB/wiki).**
 
 
 
