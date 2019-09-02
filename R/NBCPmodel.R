@@ -1,8 +1,14 @@
 ##########################################################################################
 #                                                                                        #
-##              Fitting LGCP to Cod from fishery commercial & survey data               ##
+##              LGNB model: A practical statistical framework to combine                ##
+##               commercial & survey data and model the spatio-temporal                 ##
+##                          dynamics of marine harvested species                        ##
+##                                      (Rufener et al.)                                ##
 #                                                                                        #
 ##########################################################################################
+
+# last update: August 2019
+
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -68,7 +74,7 @@ stopifnot(INCLUDE %in% c("commercial", "survey", "both"))
 
 # 2.1) Load helper functions and R libraries
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-source("C:/Users/mruf/Desktop/NBCP_tutorial/R/utilities.R")
+source("C:/Users/mruf/Documents/LGNB/R/utilities.R")
 
 #devtools::install_github("kaskr/gridConstruct",subdir="gridConstruct") # To install the gridConstruct package
 mLoad(raster,rgeos,maptools,maps,data.table,dplyr,TMB,sp,
@@ -78,7 +84,7 @@ mLoad(raster,rgeos,maptools,maps,data.table,dplyr,TMB,sp,
 
 # 2.2.1) Load commercial fisheries data (fishery-depedent)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-comFULL <- readRDS("C:/Users/mruf/Desktop/NBCP_tutorial/Data/commercial.rds")
+comFULL <- readRDS("C:/Users/mruf/Documents/LGNB/Data/commercial.rds")
 comFULL$stock <- ifelse(comFULL$Area=="21","KAT","WBS")
 
 
@@ -93,7 +99,7 @@ commercial[,c("Month","Year","Quarter","Area","Sediment","Metiers","Data","Haul_
 
 # 2.2.2) Load scientific survey data (Fishery~indepdendent)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-survey <- readRDS("C:/Users/mruf/Desktop/NBCP_tutorial/Data/survey.rds")
+survey <- readRDS("C:/Users/mruf/Documents/LGNB/Data/survey.rds")
 survey$stock <- ifelse(survey$Area=="21","KAT","WBS") #Setting stock based on ICES area (KAT=21, WBS=22-24)
 
 
@@ -183,23 +189,23 @@ if(RESPONSE == "Cohort" & INCLUDE =="both"){
 #~~~~~~~~~~~~~~~~~~~~~~
 if(RESPONSE == "AgeGroup"){
   if(AGE == "A0"){
-    datatot$Response <- as.numeric(paste(datatot$age_0))
+    datatot$Response <- as.numeric(paste(datatot$Age_0))
   } else if(AGE == "A1"){
-    datatot$Response <- as.numeric(paste(datatot$age_1))
+    datatot$Response <- as.numeric(paste(datatot$Age_1))
   } else if (AGE == "A2") {
-    datatot$Response <- as.numeric(paste(datatot$age_2))
+    datatot$Response <- as.numeric(paste(datatot$Age_2))
   } else if (AGE == "A3"){
-    datatot$Response <- as.numeric(paste(datatot$age_3))
+    datatot$Response <- as.numeric(paste(datatot$Age_3))
   } else if (AGE == "A4"){
-    datatot$Response <- as.numeric(paste(datatot$age_4))
+    datatot$Response <- as.numeric(paste(datatot$Age_4))
   } else if (AGE == "A5"){
-    datatot$Response <- as.numeric(paste(datatot$age_5))  
+    datatot$Response <- as.numeric(paste(datatot$Age_5))  
   } else if (AGE == "A6"){
-    datatot$Response <- as.numeric(paste(datatot$age_6))
+    datatot$Response <- as.numeric(paste(datatot$Age_6))
   } else if (AGE == "A7"){
-    datatot$Response <- as.numeric(paste(datatot$age_7))
+    datatot$Response <- as.numeric(paste(datatot$Age_7))
   } else if (AGE == "A8"){
-    datatot$Response <- as.numeric(paste(datatot$age_8))
+    datatot$Response <- as.numeric(paste(datatot$Age_8))
   }
 }
 
@@ -249,9 +255,7 @@ datatot$YearQuarter <- factor(paste(datatot$Year, datatot$Quarter), levels=timeL
 
 
 
-
-
-
+#><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
 
 
 
@@ -268,32 +272,29 @@ datatot$YearQuarter <- factor(paste(datatot$Year, datatot$Quarter), levels=timeL
 comFULL$lon_mean <- rowMeans(comFULL[,c("lonStart", "lonEnd")])
 comFULL$lat_mean <- rowMeans(comFULL[,c("latStart", "latEnd")])
 
-df <- data.frame(lon=comFULL$lon_mean, lat=comFULL$lat_mean)
+df <- data.frame(lon=comFULL$lon_mean, lat=comFULL$lat_mean) #temporary df
 
 
 # 4.2) Building the grid
 #~~~~~~~~~~~~~~~~~~~~~~~~~
-if(.Platform$OS.type == "windows") setwd("C:/Users/mruf/Desktop/LGCP_MSPTOOLS/Cod/WBS")
+if(.Platform$OS.type == "windows") setwd("C:/Users/mruf/Documents/LGNB/Shapefiles")
 grid <- gridConstruct2(df,km=5,scale=1.2)
-gr <- gridFilter(grid,df,icesSquare = T,connected=T)
+gr <- gridFilter2(grid,df,icesSquare = T,connected=T) # filter out unnecessary spatial extensions
 # plot(gr)
 
 
 
+#><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
+
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 4) Discretize and associate hauls along grid cells 
+# 5) Discretize and associate hauls along grid cells 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Because the commercial data has usually very extensive hauls (crossing several grid cells), it is appropriate
-# to disaggregate the entire haul extension along the gridcells (instead of taking, for example, only the mean long/lat of the haul)
-# Note that the survey data is a particular case from the previous step, where it contains only one single interpolated
-# point (survey hauls usually don't cross more than one grid cell). Because survey data don't have start and end lon/lat
-# the same long/lat from the survey data were assigned to the respective start and ending long/lat columns .
 
 
-# 4.1) Creating a data frame containing the trawl ID, starting long/lat and ending long/lat
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 5.1) Setting a data frame containing the haul ID, and start and end long/lat of the haul
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 dat <- data.frame(sampleID=datatot$HLID, start_long=datatot$lonStart,
                   start_lat=datatot$latStart, end_long=datatot$lonEnd, end_lat=datatot$latEnd)
 
@@ -301,32 +302,31 @@ dat <- data.frame(sampleID=datatot$HLID, start_long=datatot$lonStart,
 #segments(dat$start_long,dat$start_lat, dat$end_long, dat$end_lat, col="red",lwd=1.2)
 
 
-# 4.2) Define matrix for start/end long & lat
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-p1 <- matrix(c(dat$start_long,dat$start_lat), ncol=2)
-p2 <- matrix(c(dat$end_long,dat$end_lat), ncol=2)
+
+# 5.2) Define a matrix for the haul´s start and end position
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+mStart <- matrix(c(dat$start_long,dat$start_lat), ncol=2)
+mEnd <- matrix(c(dat$end_long,dat$end_lat), ncol=2)
 
 
-# 4.3) Interpolate intermediate points at regular distance (default is 1km)
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# 5.3) Interpolate points at regular distance (default is 1km)
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 nbpts <- floor(distance(dat$start_long,dat$start_lat, dat$end_long, dat$end_lat) / 1) # one point every 1 km ~ reasonable for a 5x5 km grid
+inter_pts <- gcIntermediate(mStart,mEnd, n=nbpts, addStartEnd=FALSE) 
 
 
-# 4.4) Get intermediate points 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-inter_pts <- gcIntermediate(p1,p2, n=nbpts, addStartEnd=FALSE) #inter_pts returns a list within several list. We need to convert this list to a single dataframe
 
-
-# 4.5) Create a dataframe to specify the frequency of match between each haul and grid ID. 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 5.4) Associate the discretized hauls to the grid ID 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Note that the haul Id MUST be a factor, where each level is the frequency of a particular haul crossing a specific grid ID
 tmp <- lapply(1:length(inter_pts), function(i) {
   print(i)
   x <- inter_pts[[i]]
-  colnames(x) <- c("lon", "lat")
+  colnames(x) <- c("lon", "lat") #Needs to be the same names as those in inter_pts
   x <- as.data.frame(x)
-  haul.id <- datatot$HLID[i]
-  ind <- gridLocate(gr, x)
+  haul.id <- datatot$HLID[i] #Pick the specific haul id
+  ind <- gridLocate(gr, x) #Locate the grid ID
   data.frame(haul.id=haul.id, ind=ind, rowID = i) 
 })
 tmp2 <- do.call("rbind", tmp)
@@ -336,15 +336,32 @@ tmp2 <- tmp2[c("haulid","gf","rowID")]
 
 
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 5) Define support areas (to be used later in association to the alpha-parameter)
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
 
-# 5.1) For single support area
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 6) Defining the support areas 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# To be used later in association with the alpha-parameter
+
+
+
+# 6.1) For single support area
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Applied when using only one alpha parameter for each dataset)
-datatot$split_area <- ifelse(as.character(datatot$Data)=="commercial", "commercial", "survey") #Same configuration as model with a single alpha parameter, where we have only one single support area describes the commercial data by aggregating all hauls of the time series.
-datatot$split_area <- as.factor(datatot$split_area)
+
+# Here the haul positions of the aggregated time-series are taken to assigne
+# a unique support area for the whole time-series.
+# This is the MSA (model-single-alpha) case for the preferential sampling correction method.
+
+datatot$split_area <- ifelse(as.character(datatot$Data)=="commercial", "commercial", "survey") #Takes the haul positions of the aggregated time-series 
+
+#datatot$split_area <- ifelse(as.character(datatot$Data)=="commercial", YearQuarter, "survey") #Takes the haul positions of the disaggregated time-series to assigne onde support area per time resolution chosen
+#(monthly, quarterly, yearly,...). Here a Year-Quarter time resolution is tested. But this method is too much data-driven and therefore no broader conclusions can be dravn from the study.
+  
+
+datatot$split_area <- as.factor(datatot$split_area) #IMPORTANT - needs to be a factor!!
 
 kk <- tmp2; kk$split <- datatot$split_area[tmp2$rowID]
 SupportAreaMatrix    <- table(kk$gf, kk$split)
@@ -352,7 +369,8 @@ SupportAreaMatrix[]  <- SupportAreaMatrix>0
 SupportAreaMatrix    <- ifelse(SupportAreaMatrix==0,FALSE,TRUE)
 
 
-# 5.2) For multiple support areas
+
+# 6.2) For multiple support areas
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Applied when using either one alpha parameter (collapsing all alphas into one), 
 # or multiple alphas for commercial data, and one alpha parameter for survey)
@@ -686,7 +704,7 @@ if (MODEL_FORMULA == "m8") {
 #rm(list=setdiff(ls(), ls(pattern="datatot|gr"))) #CHECK IF IT WORKS AFTER MODELS HAVE BEEN RUN.
 
 rm(list=c("cohort_com","cohort_sur","dat","df","df_cohort","envpred_commercial","envpred_survey",
-          "fd_data","fd_data2","fid_data","p1","p2","colsel_com","colsel_sur","inter_pts","nbpts","WBS","tmp")) #Drop reduntand objects to decrease memory usage
+          "fd_data","fd_data2","fid_data","mStart","mEnd","colsel_com","colsel_sur","inter_pts","nbpts","WBS","tmp")) #Drop reduntand objects to decrease memory usage
 
 
 #obj$env$L.created.by.newton <- NULL ## Trim off very large object before saving
