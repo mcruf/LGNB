@@ -1,9 +1,9 @@
 ##########################################################################################
 #                                                                                        #
 ##              LGNB model: A practical statistical framework to combine                ##
-##               commercial & survey data and model the spatio-temporal                 ##
+##               commercial & survey data to model the spatio-temporal                  ##
 ##                          dynamics of marine harvested species                        ##
-##                                      (Rufener et al.)                                ##
+##                                    (Rufener et al.)                                  ##
 #                                                                                        #
 ##########################################################################################
 
@@ -344,48 +344,42 @@ tmp2 <- tmp2[c("haulid","gf","rowID")]
 # 6) Defining the support areas 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# To be used later in association with the alpha-parameter
-
+# To be used later in association with the alpha-parameter.
 
 
 # 6.1) For single support area
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# Here the haul positions of the aggregated time-series are taken to assigne
+# Here the haul positions of the aggregated time-series are considered to assigne
 # a unique support area for the whole time-series.
 # This is the MSA (model-single-alpha) case for the preferential sampling correction method.
 
 datatot$split_area <- ifelse(as.character(datatot$Data)=="commercial", "commercial", "survey") #Takes the haul positions of the aggregated time-series 
-
-#datatot$split_area <- ifelse(as.character(datatot$Data)=="commercial", YearQuarter, "survey") #Takes the haul positions of the disaggregated time-series to assigne onde support area per time resolution chosen
-#(monthly, quarterly, yearly,...). Here a Year-Quarter time resolution is tested. But this method is too much data-driven and therefore no broader conclusions can be dravn from the study.
-  
-
 datatot$split_area <- as.factor(datatot$split_area) #IMPORTANT - needs to be a factor!!
-
-kk <- tmp2; kk$split <- datatot$split_area[tmp2$rowID]
-SupportAreaMatrix    <- table(kk$gf, kk$split)
+tmpOne <- tmp2; tmpOne$split <- datatot$split_area[tmp2$rowID]
+SupportAreaMatrix    <- table(tmpOne$gf, tmpOne$split)
 SupportAreaMatrix[]  <- SupportAreaMatrix>0
 SupportAreaMatrix    <- ifelse(SupportAreaMatrix==0,FALSE,TRUE)
-
+# levels(datatot$split_area); levels(datatot$Data) #Check
 
 
 # 6.2) For multiple support areas
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Applied when using either one alpha parameter (collapsing all alphas into one), 
-# or multiple alphas for commercial data, and one alpha parameter for survey)
-if(SUPPORT_AREA == "Several"){
-  datatot$split_area2 <- ifelse(as.character(datatot$Data)=="commercial", as.character(datatot$YearQuarter), "survey") #Same configuration as model with a single alpha parameter, where we have only one single support area describing the commercial data.
-  datatot$split_area2 <- as.factor(datatot$split_area2)
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Similar approach as above, but the amount of support areas will
+# reflect the time-frame one is analyzing (note the difference between datatot$split_area and datatot$split_area2).
+# This is the MMA (model-multiple-alphas) case for the preferential sampling correction method.
+
+if(SUPPORT_AREA=="Several"){ # For multiple support areas
   
-  kk2 <- tmp2; kk2$split <- datatot$split_area2[tmp2$rowID]
-  SupportAreaMatrix2 <- table(kk2$gf, kk2$split)
+  datatot$split_area2 <- ifelse(as.character(datatot$Data)=="commercial", as.character(datatot$YearQuarter), "survey") #Takes the haul positions of the disaggregated time-series (e.g., monthly, quarterly,etc.)
+  datatot$split_area2 <- as.factor(datatot$split_area2)
+  tmpMulti <- tmp2; tmpMulti$split <- datatot$split_area2[tmp2$rowID]
+  SupportAreaMatrix2 <- table(tmpMulti$gf, tmpMulti$split)
   SupportAreaMatrix2[] <- SupportAreaMatrix2>0
   SupportAreaMatrix2 <- ifelse(SupportAreaMatrix2==0,FALSE,TRUE)
 }
 
 
-# 5.3) Setting support areas based on chosen input
+# 6.3) Setting support areas based on chosen input
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 if(INCLUDE == "commercial" & SUPPORT_AREA == "Several"){
   SupportAreaMatrix2[] <- SupportAreaMatrix[,1]
@@ -399,18 +393,22 @@ if(INCLUDE == "commercial" & SUPPORT_AREA == "Several"){
   SupportAreaMatrix <- SupportAreaMatrix
 }
 
+#image(gr, SupportAreaMatrix[,1]) #To see the progress..
 
-# Map haulid to data.frame rows (VERY IMPORTANT: haulid must match with the dataframe's row number (in increasing order))
+
+# 6.4) Map haulid to data.frame rows 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# VERY IMPORTANT: haulid must match with the dataframe's row number (in increasing order)
 rowid <- match(as.character(tmp2$haulid),as.character(datatot$HLID))
 stopifnot(all(is.finite(rowid)))
 rowid <- factor(rowid)
 
 
 
-# 6) Specifying spatio-temporal model with correlation among ages (cohort analysis)
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 7) TMB processing
+#~~~~~~~~~~~~~~~~~~~
 
-# 6.1) Sparse matrices for GMRF: Q = Q0+delta*I
+# 7.1) Sparse matrices for GMRF: Q = Q0+delta*I
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Q0 <- -attr(gr,"pattern")
 diag(Q0) <- 0
@@ -419,17 +417,19 @@ I <- .symDiagonal(nrow(Q0))
 
 
 
-# 6.2) Complile TMB
-#~~~~~~~~~~~~~~~~~~
-if(.Platform$OS.type == "windows") setwd("C:/Users/mruf/Desktop/LGCP_MSPTOOLS/Cod/WBS")
+# 7.2) Complile LGNB model
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+if(.Platform$OS.type == "windows") setwd("C:/Users/mruf/Documents/LGNB/src") #Set your own directory where the C++ is stored
 compile("model.cpp")
 dyn.load(dynlib("model"))
 
 
 
-# 6.3) TMB Data
-#~~~~~~~~~~~~~~~
-# TMB data are set in such way that it recognizes automatically wheter one is using FD or FID data. 
+# 7.3) Prepare TMB data
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# TMB data are set in such way that it automatically
+# recognizes the data-specific inputs. 
+
 data <- list(
   time = datatot$YearQuarter[rowid],
   gf = tmp2$gf  ,              
@@ -448,11 +448,13 @@ data <- list(
   h = mean(summary(as.polygons(gr))$side.length) #To be used later to plot the spatial decorrelation as a function of distance
 )
 
-# Fitting the model
-#~~~~~~~~~~~~~~~~~~~~
+
+
+# 7.4) Build the bjective function
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
-  time_levels <- levels(data$time) # There must be at least one time levels; They MUST match between the two data types!
+  time_levels <- levels(data$time) # There must be at least one time level; They MUST match between the two data types!
   grid_nlevels <- nlevels(data$gf)
   data$doPredict <- 0
   data$offset <- model_struct$offset 
@@ -465,7 +467,7 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
     DFpredict <- expand.grid(gf=levels(data$gf), time=levels(data$time))
     ## FIXME: We should include depth and covariates here !
     ##        But that requires depth on the entire grid...
-    Xpredict <- model.matrix(~time, data=DFpredict) ## <-- gear removed
+    Xpredict <- model.matrix(~time, data=DFpredict) ## 
     stopifnot( all( colnames(Xpredict) %in% colnames(data$X) ) ) ## Validity check
     tmp <- matrix(0, nrow(Xpredict), ncol(data$X))
     tmp[,match(colnames(Xpredict), colnames(data$X))] <- Xpredict
@@ -482,13 +484,14 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
     eta_density = matrix(0,nrow(Q0),length(time_levels)),
     eta_nugget = numeric(0),
     logdelta = -4,       # Check values
-    logscale = 0,         # Check values
+    logscale = 0,        # Check values
     logsd_nugget = 0,    # Check values
     time_corr = 2,       # Check values
     beta = rep(0, ncol(data$X)),
     logphi = rep(0, length(data$response)>0 ),
     alpha = rep(0, nlevels(data$SupportAreaGroup))
   )
+  
   parameters$eta_static <- rep(0, grid_nlevels * with_static_field )
   parameters$logdelta_static <- rep(0, 1 * with_static_field )
   parameters$logscale_static <- rep(0, 1 * with_static_field )
@@ -560,7 +563,7 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
 
 
 
-##if(FALSE){
+
 # Model configurations
 #~~~~~~~~~~~~~~~~~~~~~~
 # Base model (no effects)

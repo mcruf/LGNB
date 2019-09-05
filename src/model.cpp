@@ -72,6 +72,9 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(Xpredict);
   DATA_FACTOR(Apredict);
 
+  /* logphi */
+  DATA_FACTOR(Data);
+
   /* Flat prior for 'robustification' */
   DATA_SCALAR(huge_sd);
 
@@ -167,9 +170,11 @@ Type objective_function<Type>::operator() ()
     }
     // Given 'group' calculate space-time probabilities of trawl positions (used for simulation only)
     SIMULATE {
+      probAreaMatrix.setZero();
       for(int j=0; j<NLEVELS(time); j++) {
         for (int i=0; i<NLEVELS(gf); i++) {
-          probAreaMatrix(i, j) = exp( alpha[group] * eta_density(i, j) - logsum( j ) );
+          if(support_area(i))
+            probAreaMatrix(i, j) = exp( alpha[group] * eta_density(i, j) - logsum( j ) );
         }
       }
     }
@@ -180,12 +185,12 @@ Type objective_function<Type>::operator() ()
         // density ~ lambda^alpha
         if (SupportAreaGroup(rowid(i)) == group) {
           ans -= alpha[group]*eta_density(pos,tim) - logsum(tim);
-        }
-        SIMULATE {
-          vector<Type> tmp = probAreaMatrix.col(tim).array();
-          gf(i) = sample_replacement(1, tmp)[0];
-          for (int k = i; k<rowid.size() && (rowid(k)==rowid(i)); k++) {
-            gf(k) = gf(i);
+          SIMULATE {
+            vector<Type> tmp = probAreaMatrix.col(tim).array();
+            gf(i) = sample_replacement(1, tmp)[0];
+            for (int k = i; k<rowid.size() && (rowid(k)==rowid(i)); k++) {
+              gf(k) = gf(i);
+            }
           }
         }
       }
@@ -210,7 +215,8 @@ Type objective_function<Type>::operator() ()
        mu = exp(log_mu);
        var = mu + mu*mu / exp(logphi(0));
        ans -= dnbinom2(response, mu, var, true).sum(); */
-    vector<Type> log_var_minus_mu = log_mu + log_mu - logphi(0);
+    vector<Type> log_var_minus_mu = log_mu + log_mu;
+    for (int i=0; i < response.size(); i++) log_var_minus_mu(i) -= logphi(Data(i));
     REPORT(log_mu);            // For debugging
     REPORT(log_var_minus_mu);  // For debugging
     ans -= dnbinom_robust(response, log_mu, log_var_minus_mu, true).sum();
