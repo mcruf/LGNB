@@ -259,9 +259,9 @@ datatot$YearQuarter <- factor(paste(datatot$Year, datatot$Quarter), levels=timeL
 
 
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 4) Building grid for the study area
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Section 4: Building grid for the study area
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Grid for both commercial and survey data should be the same.
 # It doesn't matter wheter to construct grid based on commercial or survey data, and one can arbitrary choose which dataset to use.
 # Here we take the commercial data to do this.
@@ -288,9 +288,9 @@ gr <- gridFilter2(grid,df,icesSquare = T,connected=T) # filter out unnecessary s
 
 
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 5) Discretize and associate hauls along grid cells 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Section 5: Discretize and associate hauls along grid cells 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 # 5.1) Setting a data frame containing the haul ID, and start and end long/lat of the haul
@@ -340,9 +340,9 @@ tmp2 <- tmp2[c("haulid","gf","rowID")]
 
 
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 6) Defining the support areas 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Section 6: Defining the support areas 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # To be used later in association with the alpha-parameter.
 
@@ -405,8 +405,12 @@ rowid <- factor(rowid)
 
 
 
-# 7) TMB processing
-#~~~~~~~~~~~~~~~~~~~
+#><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Section 7: TMB processing
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # 7.1) Sparse matrices for GMRF: Q = Q0+delta*I
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -417,7 +421,7 @@ I <- .symDiagonal(nrow(Q0))
 
 
 
-# 7.2) Complile LGNB model
+# 7.2) Compile LGNB model
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 if(.Platform$OS.type == "windows") setwd("C:/Users/mruf/Documents/LGNB/src") #Set your own directory where the C++ is stored
 compile("model.cpp")
@@ -430,31 +434,35 @@ dyn.load(dynlib("model"))
 # TMB data are set in such way that it automatically
 # recognizes the data-specific inputs. 
 
+
+
+# 7.3.1) Linking R data to TMB data
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 data <- list(
-  time = datatot$YearQuarter[rowid],
-  gf = tmp2$gf  ,              
-  rowid = rowid  ,
+  time = datatot$YearQuarter[rowid], # Temporal correlation 
+  gf = tmp2$gf, # Satial correlation
+  Q0 = Q0, # Spatial correlation
+  I = I, # Spatial correlation
+  Xpredict = matrix(0,0,0), # Covariate estimation matrix
+  Apredict = factor(numeric(0)), # Covariate prediction matrix (FIXME: disabled in this current version)
+  rowid = rowid ,
   response = datatot$Response,
-  Q0 = Q0,
-  I = I,
-  Xpredict = matrix(0,0,0),
-  Apredict = factor(numeric(0)),
   SupportAreaMatrix = SupportAreaMatrix,
-  SupportAreaGroup = if(SUPPORT_AREA == "Several"){
+  SupportAreaGroup = if(SUPPORT_AREA == "Several"){ # Links the support area matrix to TMB
     as.factor(datatot$split_area2)
   } else if(SUPPORT_AREA == "One"){
     as.factor(datatot$split_area)
   },
-  h = mean(summary(as.polygons(gr))$side.length) #To be used later to plot the spatial decorrelation as a function of distance
+  Data=datatot$Data,
+  h = mean(summary(as.polygons(gr))$side.length) # Optional; Can be used  to plot the spatial decorrelation as a function of distance
 )
 
 
 
-# 7.4) Build the bjective function
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+# 7.3.2) Optimize and minimize the objective function
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
-  time_levels <- levels(data$time) # There must be at least one time level; They MUST match between the two data types!
+  time_levels <- levels(data$time) # There must be at least one time levels; They MUST match between the two data types!
   grid_nlevels <- nlevels(data$gf)
   data$doPredict <- 0
   data$offset <- model_struct$offset 
@@ -467,7 +475,7 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
     DFpredict <- expand.grid(gf=levels(data$gf), time=levels(data$time))
     ## FIXME: We should include depth and covariates here !
     ##        But that requires depth on the entire grid...
-    Xpredict <- model.matrix(~time, data=DFpredict) ## 
+    Xpredict <- model.matrix(~time, data=DFpredict) ## <-- gear removed
     stopifnot( all( colnames(Xpredict) %in% colnames(data$X) ) ) ## Validity check
     tmp <- matrix(0, nrow(Xpredict), ncol(data$X))
     tmp[,match(colnames(Xpredict), colnames(data$X))] <- Xpredict
@@ -484,14 +492,13 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
     eta_density = matrix(0,nrow(Q0),length(time_levels)),
     eta_nugget = numeric(0),
     logdelta = -4,       # Check values
-    logscale = 0,        # Check values
+    logscale = 0,         # Check values
     logsd_nugget = 0,    # Check values
     time_corr = 2,       # Check values
     beta = rep(0, ncol(data$X)),
-    logphi = rep(0, length(data$response)>0 ),
+    logphi = rep(0, nlevels(data$Data)),
     alpha = rep(0, nlevels(data$SupportAreaGroup))
   )
-  
   parameters$eta_static <- rep(0, grid_nlevels * with_static_field )
   parameters$logdelta_static <- rep(0, 1 * with_static_field )
   parameters$logscale_static <- rep(0, 1 * with_static_field )
@@ -517,8 +524,11 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
     map$alpha <- factor(rep(NA,nlevels(data$SupportAreaGroup)))
   } else if(ALPHA == "No" & INCLUDE == "survey"){
     map$alpha <- factor(rep(NA,nlevels(data$SupportAreaGroup)))
-  } else if(ALPHA == "Single"){
+  } else if(ALPHA == "Single I"){
     # map$alpha = factor(map$alpha)
+  } else if(ALPHA == "Single II"){
+    map$alpha <- factor(levels(data$SupportAreaGroup) != "survey") 
+    map$alpha = factor(map$alpha)
   } else if(ALPHA == "Multi"){
     # map$alpha = factor(map$alpha)
   } 
@@ -564,9 +574,8 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
 
 
 
-# Model configurations
-#~~~~~~~~~~~~~~~~~~~~~~
-# Base model (no effects)
+# 7.4) Model matrix
+#~~~~~~~~~~~~~~~~~~~
 buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, data) {
   mm <- function(formula, data) {
     ##myna<-function(object,...){object[is.na(object)]<-0; object}
@@ -593,64 +602,59 @@ buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, data) {
 
 
 
-# Fit models
-#~~~~~~~~~~~~
+#><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Section 8: Fitting LGNB model
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Model matrices were now built in such way that it allows to include both fixed and random effects;
 # If random effects are included, then a separated formula needs to be specified, apart from the fixed effect formula;
-# E.g.: buildModelMatrices (~ Fix_1 + Fix_2, ~ Random1 -1); In this case, two variables are included as
-# fixed effect, whereas one variable was considered as random. 
-# Noteworthy: When including random effect, the intercept needs to be substracted (-1) from it.
+# E.g.: buildModelMatrices (~ Fix_1 + Fix_2, ~ Random_1 -1);
+# In this example, two variables are included as fixed effect, whereas one variable was considered as random;
+ 
+# Obs.: When including random effect, the intercept needs to be substracted (-1) from it.
 
-# Note that when a model contains one or more factor variable in its strucutre, and one (or more)
-# of these factors is data-specific (e.g, metier), one needs to fit the model in such way
-# that it runs with the whole formula sturcure (y ~ time + metier) for the data in which the
-# factor is present + dataset combined, and with the partial formula strucutre for the data
-# in which the factor does not appear (y ~ time). See example of model 2!
+# Note that when a model contains one or more factor covariate (either as fixed or random effect)
+# that is data-specific (e.g. metier), one needs to fit the model in such way that it runs with
+# the whole formula structure (~ time, ~ metier - 1) for the data in which the factor is present
+# (in this case commercial and combined model), and with a subsetted formula structure (~ time)
+# for the data in which the factor does not appear (in this case the survey model)
+# See examples below
 
 
-## M1: null model (baseline)
-if (MODEL_FORMULA == "m1") {
+
+## M1: Fixed effects: time-period; Random effects: vessel length & metier 
+if (MODEL_FORMULA == "m2") {
   if (INCLUDE %in% c("commercial", "both")) {
-    m1 <- buildModelMatrices(~ 1, data=datatot)
+    m1 <- buildModelMatrices(~ TimeYear + offset(log(HaulDur)), ~Metiers-1 + VE_LENcat-1, data=datatot)
   } else {
-    m1 <- buildModelMatrices(~ 1, data=datatot)
+    m1 <- buildModelMatrices(~ TimeYear + offset(log(HaulDur)), data=datatot)
   }
   env1 <- fit_model(data, m1, with_static_field = F)
 }
 
 
-
-## M2: Fixed effects: time levels; Random effects: vessel length & metier as random effect
-if (MODEL_FORMULA == "m2") {
+## M2: Fixed effects: time-period and sea bottom Depth; Random effects: vessel length & metier
+if (MODEL_FORMULA == "m3") {
   if (INCLUDE %in% c("commercial", "both")) {
-    m2 <- buildModelMatrices(~ timeyear2 + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
+    m2 <- buildModelMatrices(~ timeyear2 + Depth + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
   } else {
-    m2 <- buildModelMatrices(~ timeyear2 + offset(log(HaulDur)), data=datatot)
+    m2 <- buildModelMatrices(~ timeyear2 + Depth + offset(log(HaulDur)), data=datatot)
   }
   env2 <- fit_model(data, m2, with_static_field = F)
 }
 
 
-## M3: Fixed effects: time levels & Depth; Random effects: vessel length & metier as random effect
-if (MODEL_FORMULA == "m3") {
-  if (INCLUDE %in% c("commercial", "both")) {
-    m3 <- buildModelMatrices(~ timeyear2 + Depth + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
-  } else {
-    m3 <- buildModelMatrices(~ timeyear2 + Depth + offset(log(HaulDur)), data=datatot)
-  }
-  env3 <- fit_model(data, m3, with_static_field = F)
-}
-
-
-## M4: Fixed effects: time levels & Depth^2; Random effects: vessel length & metier as random effect
+## M3: Fixed effects: time-period & Depth^2; Random effects: vessel length & metier
 if (MODEL_FORMULA == "m4") {
   if (INCLUDE %in% c("commercial", "both")) {
-    m4 <- buildModelMatrices(~ timeyear2 + poly(Depth,2) + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
+    m3 <- buildModelMatrices(~ timeyear2 + poly(Depth,2) + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
   } else {
-    m4 <- buildModelMatrices(~ timeyear2 + poly(Depth,2) + offset(log(HaulDur)), data=datatot)
+    m3 <- buildModelMatrices(~ timeyear2 + poly(Depth,2) + offset(log(HaulDur)), data=datatot)
   }
-  env4 <- fit_model(data, m4, with_static_field = F)
+  env3 <- fit_model(data, m3, with_static_field = F)
 }
 
 
