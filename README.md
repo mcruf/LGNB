@@ -2,7 +2,8 @@
 
 **Welcome to the LGNB model GitHub repository!**
 
-If you have made it so far, this likely means that you are interested in seing how the LGNB model actually works and can be applied.
+If you have made it so far, this likely means that you are interested in seing how the LGNB model actually works and can be applied. :)
+
 Besides estimating and predicting the spatio-temporal abundance dynamics of marine harvested species, the LGNB framework includes a set of tools that can be used to evaluate and contrast the different models, such as GIFs below.
 
 
