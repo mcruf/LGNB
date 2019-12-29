@@ -81,6 +81,9 @@ Type objective_function<Type>::operator() ()
   /* Distance in KM between grid points  */
   DATA_SCALAR(h);
 
+  /* Index calc only: which betas are time effects? */
+  DATA_IVECTOR(which_beta_time);
+
   Type sd_nugget = exp(logsd_nugget);
   Type ans = 0;
   using namespace density;
@@ -102,11 +105,12 @@ Type objective_function<Type>::operator() ()
     offset.setZero();
   }
 
-  
-  /* Optional: Add static field */
+    /* Optional: Add static field */
   PARAMETER_VECTOR(eta_static);
   PARAMETER_VECTOR(logdelta_static);
   PARAMETER_VECTOR(logscale_static);
+
+  // NOTE: eta_static code must be revised !
   if(eta_static.size() > 0) {
     /* Scale parameters for fields */
     Type scale = exp(logscale_static[0]);
@@ -125,6 +129,17 @@ Type objective_function<Type>::operator() ()
     REPORT(ntimes);
   }
 
+  /* Add static covariates */
+  DATA_MATRIX(Xs);
+  PARAMETER_VECTOR(beta_s);
+  vector<Type> mu_static = Xs * beta_s;
+  if (beta_s.size()) {
+    int ntimes = NLEVELS(time);
+    for(int i=0; i<ntimes; i++) {
+       eta_density.col(i) -= mu_static;
+    }
+  }
+
   /* Time covariance */
   //N01<Type> nldens_time;
   Type phi = time_corr / sqrt(1.0 + time_corr*time_corr);
@@ -138,13 +153,20 @@ Type objective_function<Type>::operator() ()
   /* Simulate space-time random field (and remember to add static) */
   SIMULATE {
     SEPARABLE(SCALE(nldens_time, scale), nldens).simulate(eta_density);
-    if(eta_static.size() > 0) {
-      int ntimes = NLEVELS(time);
-      for(int i=0; i<ntimes; i++) {
-        eta_density.col(i) += eta_static;
-      }
+  }
+  if (beta_s.size()) {
+    int ntimes = NLEVELS(time);
+    for(int i=0; i<ntimes; i++) {
+       eta_density.col(i) += mu_static;
     }
   }
+  if(eta_static.size() > 0) {
+    int ntimes = NLEVELS(time);
+    for(int i=0; i<ntimes; i++) {
+      eta_density.col(i) += eta_static;
+    }
+  }
+
   /* Nugget */
   if(eta_nugget.size() > 0) {
     ans -= dnorm(eta_nugget, Type(0), sd_nugget, true).sum();
@@ -240,14 +262,34 @@ Type objective_function<Type>::operator() ()
                   install("levels"),
                   Rf_getAttrib( getListElement(this -> data, "gf" ) , install("levels") ) );
   }
-  
+
+  // Do index calculation ?
+  if ( which_beta_time.size() > 0 ) {
+    int ntimes = NLEVELS(time);
+    vector<Type> logIndex(ntimes);
+    logIndex.fill( Type( R_NaReal ) );
+    for (int i = 0; i < ntimes; i++) {
+      if (which_beta_time[i] != -1) { // -1 == NA !!!
+        logIndex(i) =
+          beta_full[ which_beta_time[i] ] +
+          log( eta_density.col(i).exp().mean() );
+      }
+    }
+    ADREPORT(logIndex);
+  }
+
   if(doPredict){
     array<Type> logindex = eta_density;
     // NOTE: eta_density is the *total* field (including the static if present)
-    //if(eta_static.size() > 0) {
+    //         ^^^___ RIGHT !!!!
+    // if(eta_static.size() > 0) {
     //  for(int j=0; j<logindex.cols(); j++)
     //    logindex.col(j) += eta_static;
-    //}
+    // }
+    // if(mu_static.size() > 0) {
+    //  for(int j=0; j<logindex.cols(); j++)
+    //    logindex.col(j) += mu_static;
+    // }    
     // FIXME: Add common fixed effects to predictions (incude covariates available at every grid point).
     REPORT(logindex);
     ADREPORT(logindex);
