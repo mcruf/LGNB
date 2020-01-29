@@ -7,7 +7,7 @@
 #                                                                                        #
 ##########################################################################################
 
-# last update: September 2019
+# last update: January 2020
 
 
 
@@ -40,7 +40,7 @@ if(RESPONSE == "SizeGroup"){
 }else if(RESPONSE == "AgeGroup"){
   MODEL_CONFIG <- "m2_A3" #Default model and AgeGroup 3
 } else if(RESPONSE == "Cohort")
-  MODEL_CONFIG <- "m1_2005" #Default model when applied on cohort-basis (2005 cohort) 
+  MODEL_CONFIG <- "m1_2015" #Default model when applied on cohort-basis (2005 cohort) 
 
 MODEL_CONFIG <- strsplit(MODEL_CONFIG, "_")[[1]]
 MODEL_FORMULA <- MODEL_CONFIG[1]
@@ -78,7 +78,7 @@ source("C:/Users/mruf/Documents/LGNB/R/utilities.R")
 
 #devtools::install_github("kaskr/gridConstruct",subdir="gridConstruct") # To install the gridConstruct package
 mLoad(raster,rgeos,maptools,maps,data.table,dplyr,TMB,sp,
-      DATRAS,gridConstruct,rgdal,geosphere,devtools,plyr,fields,forcats)
+      DATRAS,gridConstruct,rgdal,geosphere,devtools,plyr,fields)
 
 
 
@@ -89,7 +89,7 @@ comFULL$stock <- ifelse(comFULL$Area=="21","KAT","WBS")
 
 
 # Subset data for a particular stock and/or time frame
-commercial <- subset(comFULL, stock == STOCK) #Setting stock based on ICES area (KAT=21, WBS=22-24)
+commercial <- subset(comFULL, stock == STOCK & Year %in% c(2015:2016)) #Setting stock based on ICES area (KAT=21, WBS=22-24)
 
 
 # Drop unused factor levels
@@ -104,7 +104,7 @@ survey$stock <- ifelse(survey$Area=="21","KAT","WBS") #Setting stock based on IC
 
 
 # Subset data for a particular time frame
-survey <- filter(survey, stock == STOCK)
+survey <- filter(survey, stock == STOCK & Year %in% c(2015:2016))
 
 
 # Drop unused factor levels
@@ -278,7 +278,7 @@ df <- data.frame(lon=comFULL$lon_mean, lat=comFULL$lat_mean) #temporary df
 # 4.2) Building the grid
 #~~~~~~~~~~~~~~~~~~~~~~~~~
 if(.Platform$OS.type == "windows") setwd("C:/Users/mruf/Documents/LGNB/Shapefiles")
-grid <- gridConstruct2(df,km=5,scale=1.2)
+grid <- gridConstruct2(df,km=10,scale=1.2)
 gr <- gridFilter2(grid,df,icesSquare = T,connected=T) # filter out unnecessary spatial extensions
 # plot(gr)
 
@@ -424,6 +424,7 @@ I <- .symDiagonal(nrow(Q0))
 # 7.2) Compile LGNB model
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 if(.Platform$OS.type == "windows") setwd("C:/Users/mruf/Documents/LGNB/src") #Set your own directory where the C++ is stored
+#Sys.setenv(PATH="%PATH%;C:/Rtools/gcc-4.6.3/bin;c:/Rtools/bin") #Run only when on windows
 compile("LGNB.cpp")
 dyn.load(dynlib("LGNB"))
 
@@ -439,28 +440,33 @@ dyn.load(dynlib("LGNB"))
 # 7.3.1) Linking R data to TMB data
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 data <- list(
-  time = datatot$YearQuarter[rowid], # Temporal correlation 
-  gf = tmp2$gf, # Satial correlation
-  Q0 = Q0, # Spatial correlation
-  I = I, # Spatial correlation
-  Xpredict = matrix(0,0,0), # Covariate estimation matrix
-  Apredict = factor(numeric(0)), # Covariate prediction matrix (FIXME: disabled in this current version)
-  rowid = rowid ,
+  time = datatot$YearQuarter[rowid],
+  gf = tmp2$gf  ,              
+  rowid = rowid  ,
   response = datatot$Response,
+  Q0 = Q0,
+  I = I,
+  Xpredict = matrix(0,0,0),
+  Apredict = factor(numeric(0)),
   SupportAreaMatrix = SupportAreaMatrix,
-  SupportAreaGroup = if(SUPPORT_AREA == "Several"){ # Links the support area matrix to TMB
+  SupportAreaGroup = if(SUPPORT_AREA == "Several"){
     as.factor(datatot$split_area2)
   } else if(SUPPORT_AREA == "One"){
     as.factor(datatot$split_area)
   },
   Data=datatot$Data,
-  h = mean(summary(as.polygons(gr))$side.length) # Optional; Can be used  to plot the spatial decorrelation as a function of distance
+  h = mean(summary(as.polygons(gr))$side.length) #To be used later to plot the spatial decorrelation as a function of distance
 )
 
 
 
 # 7.3.2) Optimize and minimize the objective function
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+# Fitting the model
+#~~~~~~~~~~~~~~~~~~~~
+
 fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
   time_levels <- levels(data$time) # There must be at least one time levels; They MUST match between the two data types!
   grid_nlevels <- nlevels(data$gf)
@@ -496,7 +502,7 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
     logsd_nugget = 0,    # Check values
     time_corr = 2,       # Check values
     beta = rep(0, ncol(data$X)),
-    logphi = rep(0, nlevels(data$Data)),
+    logphi = rep(0, nlevels(data$Data) ),
     alpha = rep(0, nlevels(data$SupportAreaGroup))
   )
   parameters$eta_static <- rep(0, grid_nlevels * with_static_field )
@@ -505,11 +511,14 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
   
   ## Plugin model specification
   if(!is.null(model_struct)) {
+    data$Xs                 <- model_struct$Xs
     data$X                  <- model_struct$Xf
     data$beta_r_fac         <- model_struct$beta_r_fac
     parameters$beta         <- model_struct$beta
     parameters$beta_r       <- model_struct$beta_r
+    parameters$beta_s       <- model_struct$beta_s
     parameters$beta_r_logsd <- model_struct$beta_r_logsd
+    data$which_beta_time    <- guess_time_effects_in_beta(data, time_levels)
   }
   
   ## Prior std dev on fixed effects (for robustness only)
@@ -542,7 +551,7 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
   
   obj <- MakeADFun(data, parameters, random=c("eta_density","eta_nugget","eta_static","beta_r"),
                    profile = profile,
-                   map=map, DLL="model")
+                   map=map, DLL="LGNB")
   
   obj$env$tracepar <-TRUE
   
@@ -574,9 +583,23 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE) {
 
 
 
+# 7.3.3) Include environmental covariates for prediction
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# NOTE: Ignore this step if you want to predict the abundance only 
+# as a function of the spatio-temporal correlation paramaters
+
+covariates <- readRDS("~/pred_covariates.rds")
+
+attr(datatot, "static") <- covariates
+
+
+
+
+
 # 7.4) Model matrix
 #~~~~~~~~~~~~~~~~~~~
-buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, data) {
+buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, static=NULL, data) {
   mm <- function(formula, data) {
     ##myna<-function(object,...){object[is.na(object)]<-0; object}
     mf <- model.frame(formula, data, na.action=na.pass)
@@ -589,6 +612,11 @@ buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, data) {
     Xr <- lapply(list(random, ...), mm, data=data)
   else
     Xr <- list(matrix(NA, nrow(Xf), 0))
+  if(!is.null(static))
+    Xs <- mm(static, data=attr(data,"static"))
+  else
+    #Xs <- matrix(NA, 0, 0) # Kasper's version; works on my local machine but not in hpc
+    Xs <- matrix(NA, nrow(gr), 0) #works on both local machine and hpc
   nr <- sapply(Xr, ncol)
   nf <- ncol(Xf)
   beta <- rep(0, nf)
@@ -596,9 +624,12 @@ buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, data) {
   beta_r_fac <- factor(rep(1:length(nr), nr))
   beta_r_logsd <- rep(0, nlevels(beta_r_fac))
   offset <- eval(offset, data)
+  ns <- ncol(Xs)
+  beta_s <- rep(0, ns)
   if(!is.null(offset)) stopifnot(is.numeric(offset)) else offset <- numeric(0)
-  list(Xf=cbind(Xf, do.call("cbind", Xr)), nr=nr, nf=nf, beta=beta, beta_r=beta_r, beta_r_fac=beta_r_fac, beta_r_logsd=beta_r_logsd, offset=offset)
+  list(Xf=cbind(Xf, do.call("cbind", Xr)), Xs=Xs, nr=nr, nf=nf, ns=ns, beta=beta, beta_s=beta_s, beta_r=beta_r, beta_r_fac=beta_r_fac, beta_r_logsd=beta_r_logsd, offset=offset)
 }
+
 
 
 
@@ -610,112 +641,124 @@ buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, data) {
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Model matrices were now built in such way that it allows to include both fixed and random effects;
-# If random effects are included, then a separated formula needs to be specified, apart from the fixed effect formula;
-# E.g.: buildModelMatrices (~ Fix_1 + Fix_2, ~ Random_1 -1);
-# In this example, two variables are included as fixed effect, whereas one variable was considered as random;
- 
-# Obs.: When including random effect, the intercept needs to be substracted (-1) from it.
+# If random effects are included, then a separated formula needs to be specified for each random effect,apart from the fixed effect formula;
+# E.g.: buildModelMatrices (~ Fix_A + Fix_B, ~ Random_C -1, ~ Random_D -1);
+# In this example, two variables (A and B) are included as fixed effect, and two as random (C and D);
 
 # Note that when a model contains one or more factor covariate (either as fixed or random effect)
 # that is data-specific (e.g. metier), one needs to fit the model in such way that it runs with
 # the whole formula structure (~ time, ~ metier - 1) for the data in which the factor is present
 # (in this case commercial and combined model), and with a subsetted formula structure (~ time)
 # for the data in which the factor does not appear (in this case the survey model)
-# See examples below
+
+# Note, also, that the buildMoldeMatrices function allows you to specify
+# two ways of including the fixed effect of the covariates (if present).
+# The first way includes the covariates in the observation process, while the
+# second way does it in the latent process. 
+# Including covariates in the observation process allows to account for factors that are
+# thought to affect the catchability, whereas in the second case it accounts for factors
+# that are believed to affect the underlying abundance density field.
 
 
 
-## M1: Fixed effects: time-period; Random effects: vessel length & metier 
-if (MODEL_FORMULA == "m2") {
+# See some examples below:
+
+
+#~~~~~~~
+## M1 ##
+#~~~~~~~
+
+# Fixed effects: time-period (only in the observation process)
+# Random effects: vessel length (VE_LENcat) & metier(Metiers)
+# Offset: log(haul duration)
+if (MODEL_FORMULA == "m1") {
   if (INCLUDE %in% c("commercial", "both")) {
-    m1 <- buildModelMatrices(~ TimeYear + offset(log(HaulDur)), ~Metiers-1 + VE_LENcat-1, data=datatot)
+    m1 <- buildModelMatrices(fixed = ~ -1 + TimeYear, random = ~ -1 + Metiers,~ -1 + VE_LENcat, offset = quote(log(HaulDur)), data = datatot)
   } else {
-    m1 <- buildModelMatrices(~ TimeYear + offset(log(HaulDur)), data=datatot)
+    m1 <- buildModelMatrices(fixed = ~ -1 + TimeYear, offset = quote(log(HaulDur)), data = datatot)
   }
   env1 <- fit_model(data, m1, with_static_field = F)
 }
 
 
-## M2: Fixed effects: time-period and sea bottom Depth; Random effects: vessel length & metier
-if (MODEL_FORMULA == "m3") {
+
+#~~~~~~~
+## M2 ##
+#~~~~~~~
+
+# Fixed effects: time-period and depth (both in the observation process)
+# Random effects: vessel length (VE_LENcat) & metier(Metiers)
+# Offset: log(haul duration)
+if (MODEL_FORMULA == "m2") {
   if (INCLUDE %in% c("commercial", "both")) {
-    m2 <- buildModelMatrices(~ timeyear2 + Depth + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
+    m2 <- buildModelMatrices(fixed = ~ -1 + TimeYear + Depth, random = ~ -1 + Metiers,~ -1 + VE_LENcat, offset = quote(log(HaulDur)),  data = datatot)
   } else {
-    m2 <- buildModelMatrices(~ timeyear2 + Depth + offset(log(HaulDur)), data=datatot)
+    m2 <- buildModelMatrices(fixed = ~ -1 + TimeYear + Depth, offset = quote(log(HaulDur)), data=datatot)
   }
   env2 <- fit_model(data, m2, with_static_field = F)
 }
 
 
-## M3: Fixed effects: time-period & Depth^2; Random effects: vessel length & metier
-if (MODEL_FORMULA == "m4") {
+
+
+#~~~~~~~
+## M3 ##
+#~~~~~~~
+
+# Fixed effects: time-period (the observation process) and depth (latent process)
+# Random effects: vessel length (VE_LENcat) & metier(Metiers)
+# Offset: log(haul duration)
+if (MODEL_FORMULA == "m3") {
   if (INCLUDE %in% c("commercial", "both")) {
-    m3 <- buildModelMatrices(~ timeyear2 + poly(Depth,2) + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
+    m3 <- buildModelMatrices(fixed = ~ -1 + TimeYear, random = ~ -1 + Metiers, ~ -1 + VE_LENcat, static = ~ -1 + depth ,offset = quote(log(HaulDur)), data = datatot)
   } else {
-    m3 <- buildModelMatrices(~ timeyear2 + poly(Depth,2) + offset(log(HaulDur)), data=datatot)
+    m3 <- buildModelMatrices(fixed = ~ -1 + TimeYear, static = ~ -1 + depth ,offset = quote(log(HaulDur)), data=datatot)
   }
   env3 <- fit_model(data, m3, with_static_field = F)
 }
 
 
-## M5: Fixed effects: time levels & Sediment; Random effects: vessel length & metier as random effect
-if (MODEL_FORMULA == "m5") {
-  if (INCLUDE %in% c("commercial", "both")) {
-    m5 <- buildModelMatrices(~ timeyear2 + Sediment + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
-  } else {
-    m5 <- buildModelMatrices(~ timeyear2 + Sediment + offset(log(HaulDur)), data=datatot)
-  }
-  env5 <- fit_model(data, m5, with_static_field = F)
-}
 
 
-## M6: Fixed effects: time levels, Depth & Sediment; Random effects: vessel length & metier as random effect
-if (MODEL_FORMULA == "m6") {
-  if (INCLUDE %in% c("commercial", "both")) {
-    m6 <- buildModelMatrices(~ timeyear2 + Depth + Sediment + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
-  } else {
-    m6 <- buildModelMatrices(~ timeyear2 + Depth + Sediment + offset(log(HaulDur)), data=datatot)
-  }
-  env6 <- fit_model(data, m6, with_static_field = F)
-}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
+# Extract the results
+#~~~~~~~~~~~~~~~~~~~~~~
 
-## M7: Fixed effects: time levels, Depth^2 & Sediment; Random effects: vessel length & metier as random effect
-if (MODEL_FORMULA == "m7") {
-  if (INCLUDE %in% c("commercial", "both")) {
-    m7 <- buildModelMatrices(~ timeyear2 + poly(Depth,2) + Sediment + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
-  } else {
-    m7 <- buildModelMatrices(~ timeyear2 + poly(Depth,2) + Sediment + offset(log(HaulDur)), data=datatot)
-  }
-  env7 <- fit_model(data, m7, with_static_field = F)
-}
+
+env2$sdr #get TMB sdreport
+env2$s.fxied #get fixed-effect values
+env2$s.random
+
+# Replace env2 by the appropriate model ID that was run
+
+
+# Plotting
+pl <- as.list(env2$sdr, "Estimate") #for the estimated abundances
+plsd <- as.list(env2$sdr, "Std. Error") #for the SE of the estimated abundances
+
+
+nr <- nlevels(factor(datatot$Year))
+nc <- 4
+
+par(mfrow=c(nr,nc))
 
 
 
-## M8: Fixed effects: time levels, Depth, Sediment & Depth:Sediment; Random effects: vessel length & metier as random effect
-if (MODEL_FORMULA == "m8") {
-  if (INCLUDE %in% c("commercial", "both")) {
-    m8 <- buildModelMatrices(~ timeyear2 + Depth*Sediment + offset(log(HaulDur)), ~metiers-1 + VE_LENcat-1, data=datatot)
-  } else {
-    m8 <- buildModelMatrices(~ timeyear2 + Depth*Sediment + offset(log(HaulDur)), data=datatot)
-  }
-  env8 <- fit_model(data, m8, with_static_field = F)
+# Plot estimated abundance fields
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+for(i in 1:ncol(pl$eta_density)){
+image(gr, concTransform(pl$eta_density[,i]),col=tim.colors(99))
+  title(levels(datatot$YearQuarter)[i])
 }
 
 
 
-#~~~~~~~~~~~~~
-# Save results
-#~~~~~~~~~~~~~
-#rm(list=setdiff(ls(), ls(pattern="datatot|gr"))) #CHECK IF IT WORKS AFTER MODELS HAVE BEEN RUN.
+# For the SE of the estimated abundance field
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+for(i in 1:ncol(pl$eta_density)){
+  image(gr, concTransform(plsd$eta_density[,i]),col=tim.colors(99))
+  title(levels(datatot$YearQuarter)[i])
+}
 
-rm(list=c("cohort_com","cohort_sur","dat","df","df_cohort","envpred_commercial","envpred_survey",
-          "fd_data","fd_data2","fid_data","mStart","mEnd","colsel_com","colsel_sur","inter_pts","nbpts","WBS","tmp")) #Drop reduntand objects to decrease memory usage
-
-
-#obj$env$L.created.by.newton <- NULL ## Trim off very large object before saving
-#local({obj<-NULL}, get(grep("^env",ls(),value=T))) 
-
-OUTFILE  <- paste0("results_WBScod", INCLUDE, ".RData")
-save.image(file=OUTFILE)

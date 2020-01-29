@@ -3,8 +3,11 @@
 #=====================
 
 
-# These functions will be used along the LGCP model
+# These functions will be used along the LGNB model
 
+
+
+####################################################################################################
 
 
 # Function to read all packages in a single line
@@ -17,7 +20,7 @@ mLoad <- function(...) {
 
 
 # Function to extract cohorts and create new variable response variable based on that (Response)
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Base function to ensure that both datasets have the same timelevels
 extractCohortLevels <- function(d1, d2 = NULL, yearclass=2005, quarterclass=1) {
@@ -75,7 +78,11 @@ extractCohortLevels2 <- function(d1, d2 = NULL, yearclass=2005, quarterclass=1) 
 }
 
 
+####################################################################################################
+
+
 # Function to extract cohort on a yearly basis
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 extract_cohort_year <- function(d, yearclass=2005) {
   ##yearclass <- 2005 #Year when data starts
   n <- 1:nlevels(d$Year) #no. of Year levels in the dataset - column name should be the same as in the dataset
@@ -93,8 +100,11 @@ extract_cohort_year <- function(d, yearclass=2005) {
 }
 
 
+#########################################################################################
+
 
 # Function to extract cohort on a quarter basis within each year
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 extract_cohort_quarter <- function(d, df) {
     n <- nrow(df)
     dnew <- NULL
@@ -114,9 +124,11 @@ extract_cohort_quarter <- function(d, df) {
 ##df <- extractCohortLevels(d, d)
 ##ec <- extract_cohort_quarter(d, df)
 
+####################################################################################################
 
 
 # Function for binding commercial and survey datasets into one single dataset
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 mybind <- function(x, y) {
   i <- intersect(names(x), names(y))
   ix <- setdiff(names(x), names(y))
@@ -132,7 +144,7 @@ mybind <- function(x, y) {
 }
 
 
-
+####################################################################################################
 
 # Constructing grid based on existing shapefile
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -271,6 +283,7 @@ gridFilter2 <- function(grid,data,
 }
 
 
+####################################################################################################
 
 
 # Function to calculate distance between two points
@@ -286,6 +299,9 @@ distance <- function (lon, lat, lonRef, latRef)
   c <- 2 * atan2(sqrt(a), sqrt(1 - a))
   return(6371 * c)
 }
+
+
+####################################################################################################
 
 
 # Function to locate points on nearest grid vertex
@@ -333,58 +349,24 @@ gridFac <- function (data, grid, ...) {
 }
 
 
-#><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
+####################################################################################################
 
-# Likelihood ratio test (Kasper)
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# calculate no. of parameters (param. of main model output + param. fixed effect + param. random eff.)
-# numParms <- function(env0) {
-#   length(env0$obj$par) + sum(env0$obj$env$profile)
-# }
-# 
-# 
-# LRtest <- function(...){
-#   ##suc <- is.null(main)  #Succesive testing?
-#   args <- list(...)
-#   if(is.null(names(args)))names(args) <- sapply(substitute(f(...)),deparse)[-1]
-#   nparms <- sapply(args,numParms)
-#   lik <- sapply(args,function(x)(x$fit$objective))  
-#   casenames <- sub("env","Model",names(args))
-#   suc <- TRUE
-#   if(suc)minus2logQ <- c(NA,2*diff(lik)) else minus2logQ <- 2*(lik-main$fit$objective)
-#   if(suc)df <- c(NA, -diff(nparms)) else df <- length(main$par)-nparms
-#   p <- 1-pchisq(minus2logQ,df=df)
-#   m <- cbind(lik,minus2logQ,nparms,df,p)
-#   rownames(m) <- casenames
-#   ##if(latex)colnames(m)[1:2] <- c('$-\\log L$','$-2\\log Q$')
-#   colnames(m)[1:2] <- c('-log L','-2log Q')
-#   m
-# }
-
-LRT <- function(combined,commercial,survey){
-  #Number of parameters
-  nPar_com <- length(commercial$fit$par) + length(commercial$parameters$beta)
-  nPar_sur <- length(survey$fit$par) + length(survey$parameters$beta)
-  nPar_both <- length(combined$fit$par) + length(combined$parameters$beta)
-  #Negative log-likelihood
-  nll_com <-  commercial$fit$objective
-  nll_sur <-  survey$fit$objective
-  nll_both <-  combined$fit$objective
-  #Degrees of freedom
-  df <- (nPar_com + nPar_sur) - nPar_both 
-  #Likelihood ratio (statistics)
-  LR <- 2*(nll_both - (nll_com + nll_sur))
-  # Likelihood ratio test 
-  p.val <- pchisq(LR, df = df,lower.tail = F)
-  data.frame(LR,df,p.val)
+# Guess time effects (needed by index calculation)
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+guess_time_effects_in_beta <- function(data, time_levels) {
+  cn <- colnames(data$X)
+  cn <- gsub(" ",":",time_levels)
+  tl <- gsub(" ",":",time_levels)
+  li <- lapply(tl, function(nm) grep(nm, cn) )
+  if (any( sapply(li, length) > 1 )) {
+    print(lapply(li, function(i)cn[i]))
+    warning("Time effect is not unique. Index calc will be omitted")
+    return (integer(0))
+  }
+  found <- sapply(li, function(x)x[1])
+  found[is.na(found)] <- 0
+  ## NOTE: Output length = length(time_levels)
+  ## NOTE: NAs coded as "-1" ===> SKIP index calc or crash !!!
+  as.integer(found) - 1L
 }
-
-
-
-## FIXME: Not sure if degrees of freedom are righ - I need to check it!
-
-#><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
-
-
-
