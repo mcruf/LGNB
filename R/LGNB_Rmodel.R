@@ -15,14 +15,14 @@
 # Section 1: Default inputs
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 STOCK <- c("WBS","KAT")[1] # Specify to which stock the data should be subsetted (Western Baltic Sea or Kattegat)
-DATA  <- c("commercial", "survey", "both") [1] # Specify the desired input data for the model; default is commercial data-
+DATA  <- c("commercial", "survey", "both") [3] # Specify the desired input data for the model; default is commercial data-
 RESPONSE <- c("SizeGroup","AgeGroup","Cohort")[2] #Choose whether the model is applied for each SizeGroup, AgeGroup, or on a Cohort basis (when Nage).Default is set to SizeGroup.
-PF <- c("No","One","Two")[2] #Define how the sampling nature should be accounted for
+PS <- c("No","One","Two")[1] #Define how the sampling nature should be accounted for
 
 
-# @ PF = "No" -> For both datasets (commercial, survey), no preferential sampling is accounted for.
-# @ PF = "One" -> Preferential sampling is accounted only for the commercial data.
-# @ PF = "Two" -> Preferential sampling is accounted in both survey and commercial data; applies only to the integrated model (DATA="both")
+# @ PS = "No" -> For both datasets (commercial, survey), no preferential sampling is accounted for.
+# @ PS = "One" -> Preferential sampling is accounted only for the commercial data.
+# @ PS = "Two" -> Preferential sampling is accounted in both survey and commercial data; applies only to the integrated model (DATA="both")
 
 
 
@@ -34,7 +34,7 @@ if(RESPONSE == "SizeGroup"){
 }else if(RESPONSE == "AgeGroup"){
   MODEL_CONFIG <- "m1_A3" #Default model and AgeGroup 3
 } else if(RESPONSE == "Cohort")
-  MODEL_CONFIG <- "m1_2015" #Default model when applied on cohort-basis (2005 cohort) 
+  MODEL_CONFIG <- "m1_2011" #Default model when applied on cohort-basis (2005 cohort) 
 
 
 MODEL_CONFIG <- strsplit(MODEL_CONFIG, "_")[[1]]
@@ -84,7 +84,7 @@ comFULL$stock <- ifelse(comFULL$Area=="21","KAT","WBS")
 
 
 # Subset data for a particular stock
-commercial <- subset(comFULL, stock == STOCK) #Setting stock based on ICES area (KAT=21, WBS=22-24)
+commercial <- subset(comFULL, stock == STOCK & Year %in% c(2011:2016)) #Setting stock based on ICES area (KAT=21, WBS=22-24)
 
 
 # Drop unused factor levels
@@ -95,6 +95,10 @@ commercial[,c("Month","Year","Quarter","Area","metiers","Data","HAULID","VESSELI
 commercial$haulduration_hours <- 1 #Note: log(1)=0!
 
 
+# Create a fake "Age_0" column - for consistency when applying the model on a cohort-basis
+commercial$Age_0
+
+
 
 # 2.2.2) Load scientific survey data (Fishery~indepdendent)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -103,7 +107,7 @@ survey$stock <- ifelse(survey$Area=="21","KAT","WBS") #Setting stock based on IC
 
 
 # Subset data for a particular time frame
-survey <- filter(survey, stock == STOCK)
+survey <- filter(survey, stock == STOCK & Year %in% c(2011:2016))
 
 
 # Drop unused factor levels
@@ -343,11 +347,12 @@ tmp2 <- tmp2[c("haulid","gf","rowID")]
 
 
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Section 6: Defining the support areas 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Section 6: Defining the preferential sampling 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# To be used later in association with the alpha-parameter.
+# If a preferential sampling behaviour in the commercial and/or survey data
+# is accounted for, we have to define the so-called sampling support area.
 
 
 # 6.1) For single support area
@@ -500,17 +505,17 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE, profile=
   map <- list()
   if(TRUE) map$logsd_nugget <- factor(NA)
   
-  if(PF == "No" & DATA == "both"){
+  if(PS == "No" & DATA == "both"){
     map$alpha <- factor(rep(NA,nlevels(data$SupportAreaGroup)))
-  } else if(PF == "No" & DATA == "commercial") {
+  } else if(PS == "No" & DATA == "commercial") {
     map$alpha <- factor(rep(NA,nlevels(data$SupportAreaGroup)))
-  } else if(PF == "No" & DATA == "survey"){
+  } else if(PS == "No" & DATA == "survey"){
     map$alpha <- factor(rep(NA,nlevels(data$SupportAreaGroup)))
-  } else if(PF == "One"){
+  } else if(PS == "One"){
     lev <- levels(data$SupportAreaGroup)
     lev[lev=="survey"] <- NA
     map$alpha <- factor(lev)
-  } else if(PF == "Two"){
+  } else if(PS == "Two"){
     lev <- levels(data$SupportAreaGroup)
     #lev[lev=="survey"] <- NA
     map$alpha <- factor(lev)
