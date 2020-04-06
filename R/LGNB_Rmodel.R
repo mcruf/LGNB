@@ -84,7 +84,7 @@ comFULL$stock <- ifelse(comFULL$Area=="21","KAT","WBS")
 
 
 # Subset data for a particular stock
-commercial <- subset(comFULL, stock == STOCK & Year %in% c(2011:2016)) #Setting stock based on ICES area (KAT=21, WBS=22-24)
+commercial <- subset(comFULL, stock == STOCK) #Setting stock based on ICES area (KAT=21, WBS=22-24)
 
 
 # Drop unused factor levels
@@ -96,7 +96,7 @@ commercial$haulduration_hours <- 1 #Note: log(1)=0!
 
 
 # Create a fake "Age_0" column - for consistency when applying the model on a cohort-basis
-commercial$Age_0
+#commercial$Age_0 <- NA
 
 
 
@@ -107,7 +107,7 @@ survey$stock <- ifelse(survey$Area=="21","KAT","WBS") #Setting stock based on IC
 
 
 # Subset data for a particular time frame
-survey <- filter(survey, stock == STOCK & Year %in% c(2011:2016))
+survey <- filter(survey, stock == STOCK)
 
 
 # Drop unused factor levels
@@ -570,9 +570,9 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE, profile=
 # NOTE: Ignore this step if you want to predict the abundance only 
 # as a function of the spatio-temporal correlation paramaters
 
-#covariates <- readRDS("~/pred_covariates.rds")
+covariates <- readRDS("~/pred_covariates.rds")
 
-#attr(datatot, "static") <- covariates
+attr(datatot, "static") <- covariates
 
 
 
@@ -651,8 +651,8 @@ buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, static=NULL
 
 
 ## Reverse levels (to re-parameterize)
-data$Data <- factor(data$Data, rev(levels(data$Data)) )
-datatot$Data <- factor(datatot$Data, rev(levels(datatot$Data)) )
+data$Data <- factor(data$Data, rev(levels(data$Data))) #Make sure that survey data comes always first!
+datatot$Data <- factor(datatot$Data, rev(levels(datatot$Data))) #Make sure that survey data comes always first!
 
 # See some examples below:
 
@@ -661,17 +661,18 @@ datatot$Data <- factor(datatot$Data, rev(levels(datatot$Data)) )
 ## M1 ##
 #~~~~~~~
 
-# Fixed effects: time-period (in both data sources), metiers (commercial data), Ship (survey data)
+# Fixed effects on observation process: time-period (in both data sources), metiers (commercial data), Ship (survey data)
+# Fixed effects on latent process: None
 # Random effects: vessel ID (whenever commercial data is considered)
 # Offset: log(haul duration)
 
 if (MODEL_FORMULA == "m1") {
   if(DATA == "commercial"){
-    m1 <- buildModelMatrices(~  -1 + YearQuarter + metiers,~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    m1 <- buildModelMatrices(~  -1 + YearQuarter + metiers,~ random = -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
   } else if(DATA == "survey"){
     m1 <- buildModelMatrices(~ -1 + YearQuarter + Ship, offset = quote(log(HaulDur)), data=datatot)
   } else {
-    m1 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers, ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    m1 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
   }
   system.time( env1 <- fit_model(data, m1, with_static_field = F, profile=F) )
 }
@@ -682,16 +683,19 @@ if (MODEL_FORMULA == "m1") {
 ## M2 ##
 #~~~~~~~
 
-# Fixed effects: time-period and depth (both in the observation process)
-# Random effects: vessel length (VE_LENcat) & metier(Metiers)
+# Fixed effects on observation process: time-period (in both data sources), metiers (commercial data), Ship (survey data), depth
+# Fixed effects on latent process: None
+# Random effects: vessel ID (whenever commercial data is considered)
 # Offset: log(haul duration)
 if (MODEL_FORMULA == "m2") {
-  if (INCLUDE %in% c("commercial", "both")) {
-    m2 <- buildModelMatrices(fixed = ~ -1 + TimeYear + Depth, random = ~ -1 + Metiers,~ -1 + VE_LENcat, offset = quote(log(HaulDur)),  data = datatot)
+  if(DATA == "commercial"){
+    m2 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth,~ random = -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+  } else if(DATA == "survey"){
+    m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data=datatot)
   } else {
-    m2 <- buildModelMatrices(fixed = ~ -1 + TimeYear + Depth, offset = quote(log(HaulDur)), data=datatot)
+    m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
   }
-  env2 <- fit_model(data, m2, with_static_field = F)
+  system.time( env2 <- fit_model(data, m2, with_static_field = F, profile=F) )
 }
 
 
@@ -701,16 +705,19 @@ if (MODEL_FORMULA == "m2") {
 ## M3 ##
 #~~~~~~~
 
-# Fixed effects: time-period (the observation process) and depth (latent process)
-# Random effects: vessel length (VE_LENcat) & metier(Metiers)
+# Fixed effects on observation process: time-period (in both data sources), metiers (commercial data), Ship (survey data)
+# Fixed effects on latent process: Depth
+# Random effects: vessel ID (whenever commercial data is considered)
 # Offset: log(haul duration)
-if (MODEL_FORMULA == "m3") {
-  if (INCLUDE %in% c("commercial", "both")) {
-    m3 <- buildModelMatrices(fixed = ~ -1 + TimeYear, random = ~ -1 + Metiers, ~ -1 + VE_LENcat, static = ~ -1 + depth ,offset = quote(log(HaulDur)), data = datatot)
+if (MODEL_FORMULA == "m2") {
+  if(DATA == "commercial"){
+    m3 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth,~ random = -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
+  } else if(DATA == "survey"){
+    m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data = datatot)
   } else {
-    m3 <- buildModelMatrices(fixed = ~ -1 + TimeYear, static = ~ -1 + depth ,offset = quote(log(HaulDur)), data=datatot)
+    m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, static = ~ -1 + depth, ~ random = -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
   }
-  env3 <- fit_model(data, m3, with_static_field = F)
+  system.time( env3 <- fit_model(data, m3, with_static_field = F, profile=F) )
 }
 
 
