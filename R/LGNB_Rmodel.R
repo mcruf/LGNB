@@ -84,7 +84,18 @@ comFULL$stock <- ifelse(comFULL$Area=="21","KAT","WBS")
 
 
 # Subset data for a particular stock
-commercial <- subset(comFULL, stock == STOCK) #Setting stock based on ICES area (KAT=21, WBS=22-24)
+commercial <- if(RESPONSE == "Cohort"){
+                  t <- as.numeric(as.character(comFULL$Year))
+                  tmax <- as.factor(max(t))
+                  
+                  yearclass <- as.numeric(as.character(YEARCLASS))
+                  tperiod <- as.factor(c(yearclass:as.numeric(as.character(tmax))))
+                
+                subset(comFULL, stock == STOCK & Year %in% tperiod) #Setting stock based on ICES area (KAT=21, WBS=22-24)
+            } else{
+                subset(comFULL, stock == STOCK)
+}
+
 
 
 # Drop unused factor levels
@@ -96,7 +107,7 @@ commercial$haulduration_hours <- 1 #Note: log(1)=0!
 
 
 # Create a fake "Age_0" column - for consistency when applying the model on a cohort-basis
-#commercial$Age_0 <- NA
+commercial$Age_0 <- NA
 
 
 
@@ -108,6 +119,21 @@ survey$stock <- ifelse(survey$Area=="21","KAT","WBS") #Setting stock based on IC
 
 # Subset data for a particular time frame
 survey <- filter(survey, stock == STOCK)
+
+
+survey <- if(RESPONSE == "Cohort"){
+                    t <- as.numeric(as.character(survey$Year))
+                 tmax <- max(t)
+   
+            yearclass <- as.numeric(as.character(YEARCLASS))
+              tperiod <- as.factor(c(yearclass:tmax))
+  
+              subset(survey, stock == STOCK & Year %in% tperiod) #Setting stock based on ICES area (KAT=21, WBS=22-24)
+          } else{
+              
+              subset(survey, stock == STOCK)
+          }
+
 
 
 # Drop unused factor levels
