@@ -694,7 +694,7 @@ datatot$Data <- factor(datatot$Data, rev(levels(datatot$Data))) #Make sure that 
 
 if (MODEL_FORMULA == "m1") {
   if(DATA == "commercial"){
-    m1 <- buildModelMatrices(~  -1 + YearQuarter + metiers,~ random = -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    m1 <- buildModelMatrices(~  -1 + YearQuarter + metiers, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
   } else if(DATA == "survey"){
     m1 <- buildModelMatrices(~ -1 + YearQuarter + Ship, offset = quote(log(HaulDur)), data=datatot)
   } else {
@@ -715,7 +715,7 @@ if (MODEL_FORMULA == "m1") {
 # Offset: log(haul duration)
 if (MODEL_FORMULA == "m2") {
   if(DATA == "commercial"){
-    m2 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth,~ random = -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    m2 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
   } else if(DATA == "survey"){
     m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data=datatot)
   } else {
@@ -737,7 +737,7 @@ if (MODEL_FORMULA == "m2") {
 # Offset: log(haul duration)
 if (MODEL_FORMULA == "m2") {
   if(DATA == "commercial"){
-    m3 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth,~ random = -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
+    m3 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
   } else if(DATA == "survey"){
     m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data = datatot)
   } else {
@@ -757,7 +757,7 @@ if (MODEL_FORMULA == "m2") {
 
 
 env1$sdr #get TMB sdreport
-env1$s.fxied #get fixed-effect values
+env1$s.fixed #get fixed-effect values
 env1$s.random
 
 # Replace env2 by the appropriate model ID that was run
