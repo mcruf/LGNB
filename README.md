@@ -54,3 +54,12 @@ Here several helper functions are gathered together,among them the cohort extrac
 ***
 
 
+
+***
+
+### Acknowledgements
+
+This application was developed and financed under the NORDFO project (Grant Agreement No. 33113-13-19-128) and co-financed by the MSPTOOLS project(Grant Agreement No. 33113-B-16-064).
+
+***
+
