@@ -1,3 +1,7 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4506948.svg)](https://doi.org/10.5281/zenodo.4506948)
+
+
+
 # LGNB
 
 **Welcome to the LGNB model GitHub repository!**
