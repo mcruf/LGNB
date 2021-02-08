@@ -1,3 +1,7 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4506948.svg)](https://doi.org/10.5281/zenodo.4506948)
+
+
+
 # LGNB
 
 **Welcome to the LGNB model GitHub repository!**
@@ -53,4 +57,13 @@ Here several helper functions are gathered together,among them the cohort extrac
 
 ***
 
+
+
+***
+
+### Acknowledgements
+
+This application was developed and financed under the NORDFO project (Grant Agreement No. 33113-13-19-128) and co-financed by the MSPTOOLS project(Grant Agreement No. 33113-B-16-064).
+
+***
 
