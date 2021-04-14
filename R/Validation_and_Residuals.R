@@ -132,7 +132,8 @@ f2 <- as.numeric(obj1$fn(par2)) #Evaluate survey likelihood from integrated mode
 
 ## For the fixed-effect parameters
 df <- sum(par1 != 0) ## Get degrees of freedom - recall we use '0' for betas that are not estimated by obj1
-1 - pchisq( 2 * (f2-f1), df=df )
+fixed <- 1 - pchisq( 2 * (f2-f1), df=df )
+fixed
 
 
 ## Similar test now including random effects
@@ -140,14 +141,78 @@ par2.all <- extractBaseParameters(obj1, pl1, pl2, all=TRUE)
 f1.all <- obj1$env$f(obj1$env$last.par.best) #Best evaluated parameters
 f2.all <- obj1$env$f(par2.all)
 df.all <- df + length(obj1$env$random)
-1 - pchisq( 2 * (f2.all-f1.all), df=df.all )
+random <- 1 - pchisq( 2 * (f2.all-f1.all), df=df.all )
+random
+
 
 ## Compare estimates visually
 i <- (par1 != 0) ## consider non missing parameters
-plot(par1[i], par2[i]); abline(0,1, col="red")
 
-## Compare spatial random effects
-plot(as.vector(pl1$eta_density), as.vector(pl2$eta_density)); abline(0,1, col="red")
+par(mfrow=c(1,2))
+plot(par1[i], par2[i], main="fixed effects"); abline(0,1, col="red")
+legend("topleft", 
+       legend = paste("p = ",round(fixed,6)),
+       cex = 1.2)
+
+
+plot(as.vector(pl1$eta_density), as.vector(pl2$eta_density), main="random effects"); abline(0,1, col="red")
+legend("topleft", 
+       legend = paste("p = ", round(random,6)),
+       cex = 1.2)
+
+
+# # Plotting in ggplot....
+# dfrandom <- data.frame(pl1 = as.vector(pl1$eta_density), pl2 = as.vector(pl2$eta_density)) #Random effects
+# dfixed <- data.frame(par1 = par1[i], par2 = par2[i]) #Fixed effects
+# 
+# ## random-effects
+# ggplot(dfrandom, aes(x=pl1,y=pl2)) +
+#   geom_point(alpha = 0.1, size=2.5) +
+#   geom_abline(col="#0073C2FF",size=1.4, linetype = "dashed") +
+#   theme_bw() +
+#   ggtitle("Age 2") +
+#   ylab("Random Effects (survey data)") +
+#   xlab("Random Effects (integrated data)") +
+#   theme(panel.border = element_blank(),
+#         axis.line.x = element_line(size = 1, linetype = "solid", colour = "black"),
+#         axis.line.y = element_line(size = 1, linetype = "solid", colour = "black"),
+#         
+#         plot.title = element_text(hjust = 0.5, margin=margin(b=15),size=18,face="bold"),
+#         
+#         axis.text.x = element_text(face="bold",size=11),
+#         axis.text.y = element_text(size=11,face="bold"),
+#         axis.title.y = element_text(margin=margin(t=0,r=20,b=0,l=0),size=12,face="bold"),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=0,l=0),size=12,face="bold"),
+#         #axis.line = element_line(size=1, colour = "black"),
+#         
+#         legend.position = "right",
+#         
+#         plot.margin = unit(c(1,1,1,1),"cm"))
+# 
+# 
+# ## Fixed-effects
+# ggplot(dfixed, aes(x=par1,y=par2)) +
+#   geom_point(alpha = 0.3, size=3.5) +
+#   geom_abline(col="#0073C2FF",size=1.4, linetype = "dashed") +
+#   theme_bw() +
+#   ggtitle("Age 2") +
+#   ylab("Fixed Effects (survey data)") +
+#   xlab("Fixed Effects (integrated data)") +
+#   theme(panel.border = element_blank(),
+#         axis.line.x = element_line(size = 1, linetype = "solid", colour = "black"),
+#         axis.line.y = element_line(size = 1, linetype = "solid", colour = "black"),
+#         
+#         plot.title = element_text(hjust = 0.5, margin=margin(b=15),size=18,face="bold"),
+#         
+#         axis.text.x = element_text(face="bold",size=11),
+#         axis.text.y = element_text(size=11,face="bold"),
+#         axis.title.y = element_text(margin=margin(t=0,r=20,b=0,l=0),size=12,face="bold"),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=0,l=0),size=12,face="bold"),
+#         #axis.line = element_line(size=1, colour = "black"),
+#         
+#         legend.position = "right",
+#         
+#         plot.margin = unit(c(1,1,1,1),"cm"))
 
 
 
