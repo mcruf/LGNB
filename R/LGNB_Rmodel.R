@@ -813,6 +813,9 @@ if (MODEL_FORMULA == "m3") {
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+OUTFILE  <- paste("res", paste(MODEL_CONFIG, collapse="_"), DATA, PS,"alpha", TIME,".RData", sep="_")
+save.image(file=OUTFILE)
+
 
 # Extract the results
 #~~~~~~~~~~~~~~~~~~~~~~

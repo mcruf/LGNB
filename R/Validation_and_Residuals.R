@@ -1,18 +1,18 @@
 library(TMB)
 
 
-
-dyn.load(dynlib("model"))
+#setwd("~/LGNB/src")
+dyn.load(dynlib("LGNB"))
 
 
 ## Get model 1 results (survey model)
-load("results_WBScod_m1_A2_survey_No_One_noprofile_.RData")
+load("res_m1_A3_survey_No_alpha_YearQuarter_.RData")
 stopifnot(levels(datatot$Data)[1] == "survey")
 obj1 <- obj; sdr1 <- env1$sdr
 
 
 ## Get model 2 results (integrated model)
-load("results_WBScod_m1_A2_both_No_One_noprofile_.RData")
+load("res_m1_A3_both_No_alpha_YearQuarter_.RData")
 stopifnot(levels(datatot$Data)[1] == "survey")
 obj2 <- obj; sdr2 <- env1$sdr
 
@@ -92,7 +92,7 @@ fixed <- !(names(pl2) %in% random)
 map <- lapply(pl2[fixed], function(x) factor(rep(NA,length(x))) )
 
 ## Construct corresponding new function object
-obj <- MakeADFun(obj2$env$data, pl2, map=map, DLL="model")
+obj <- MakeADFun(obj2$env$data, pl2, map=map, DLL="LGNB")
 
 ## Run MCMC to get posterior sample of random effects given data
 library(tmbstan)
@@ -108,7 +108,7 @@ for (nm in random) {
 
 ## Once again construct a function object, this time using simulated
 ## random effects
-obj.sim <- MakeADFun(obj2$env$data, pl.sim, map=map, DLL="model")
+obj.sim <- MakeADFun(obj2$env$data, pl.sim, map=map, DLL="LGNB")
 
 ## Luckily the model template has 'REPORT' statements for what we need (mu and var)
 rep <- obj.sim$report()
@@ -125,6 +125,7 @@ Fx <- pnbinom(obs, mu=mu, size=size)
 px <- dnbinom(obs, mu=mu, size=size)
 u <- runif(length(Fx))
 residual <- qnorm(Fx - u * px)
+
 
 ## Finally:
 qqnorm(residual)
