@@ -370,3 +370,65 @@ guess_time_effects_in_beta <- function(data, time_levels) {
   ## NOTE: NAs coded as "-1" ===> SKIP index calc or crash !!!
   as.integer(found) - 1L
 }
+
+
+
+####################################################################################################
+
+
+# Whenever you are running a model (e.g., GLM within R basic functions), all your information is
+# stored in matrices. So if you, for example, specify a model as response ~ intercept + covariate A + covariate B, 
+# these information will be stored in a so-called design matrix, where you would have typically two
+# vectors (one for the response, another for the intercept) and one covariate matrix.
+# To do so, you could usually rely on the model.matrix R basic function. However, this function
+# provides some serious limitation when some factor levels of a particular covariate present NAs. 
+# The function normally removes empty factor levels, but when dealing with both datasets together 
+# (combined model), keeping all factor levels is very important to fit the model. For instance, 
+# the métier effect is only present in the commercial data. Thus, when binding both datasets, 
+# the final dataframe (herein called as datatot) will have empty factor levels for the survey 
+# data whenever the métier column is regarded.
+
+# Thus, to circumvent this problem, we modified the model.matrix R function within our
+# own created function (buildModelMatrices). The function provides a user-friendly interface, 
+# where you can specify your model in a similar way as done within a GLM(M)/GAM(M) formulation. ¨
+# The nice aspect of this function is that the fixed effect(s), random effect(s) and offset(s)
+# can be defined as a standard model formula (see section 8 for more details).
+
+# Here it should be noted that the function also ensures that the model matrix recognizes
+# immediately which data type is used as an input (commercial, survey or commercial+survey),
+# and thereby adapting itself according to the data considered.
+
+
+
+# Build Matrices for the model
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, static=NULL, data) {
+  mm <- function(formula, data) {
+    ##myna<-function(object,...){object[is.na(object)]<-0; object}
+    mf <- model.frame(formula, data, na.action=na.pass)
+    ans <- model.matrix(formula, mf)
+    ans[is.na(ans)] <- 0
+    ans
+  }
+  Xf <- mm(fixed, data=data)
+  if(!is.null(random))
+    Xr <- lapply(list(random, ...), mm, data=data)
+  else
+    Xr <- list(matrix(NA, nrow(Xf), 0))
+  if(!is.null(static))
+    Xs <- mm(static, data=attr(data,"static"))
+  else
+    #Xs <- matrix(NA, 0, 0) # Kasper's version; works on my local machine but not in hpc
+    Xs <- matrix(NA, nrow(gr), 0) #works on both local machine and hpc
+  nr <- sapply(Xr, ncol)
+  nf <- ncol(Xf)
+  beta <- rep(0, nf)
+  beta_r <- rep(0, sum(nr))
+  beta_r_fac <- factor(rep(1:length(nr), nr))
+  beta_r_logsd <- rep(0, nlevels(beta_r_fac))
+  offset <- eval(offset, data)
+  ns <- ncol(Xs)
+  beta_s <- rep(0, ns)
+  if(!is.null(offset)) stopifnot(is.numeric(offset)) else offset <- numeric(0)
+  list(Xf=cbind(Xf, do.call("cbind", Xr)), Xs=Xs, nr=nr, nf=nf, ns=ns, beta=beta, beta_s=beta_s, beta_r=beta_r, beta_r_fac=beta_r_fac, beta_r_logsd=beta_r_logsd, offset=offset)
+}
