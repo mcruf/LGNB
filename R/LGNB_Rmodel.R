@@ -623,8 +623,8 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE, profile=
 # as a function of the spatio-temporal correlation paramaters
 
 
-source("C:/Users/mruf/Documents/LGNB/R/Extract_Covariates_Prediction.R")
-covariates <- readRDS("~/pred_covariates.rds")
+#source("C:/Users/mruf/Documents/LGNB/R/Extract_Covariates_Prediction.R")
+covariates <- readRDS("../Data/pred_covariates.rds")
 
 attr(datatot, "static") <- covariates
 
@@ -722,16 +722,55 @@ if (MODEL_FORMULA == "m1") {
 # Fixed effects on latent process: None
 # Random effects: vessel ID (whenever commercial data is considered)
 # Offset: log(haul duration)
+# if (MODEL_FORMULA == "m2") {
+#   if(DATA == "commercial"){
+#     m2 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+#   } else if(DATA == "survey"){
+#     m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data=datatot)
+#   } else {
+#     m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+#   }
+#   system.time( env2 <- fit_model(data, m2, with_static_field = F, profile=F) )
+# }
+
+
+
 if (MODEL_FORMULA == "m2") {
   if(DATA == "commercial"){
-    m2 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    if(TIME == "YearMonth"){
+      
+      m2 <- buildModelMatrices(~  -1 + YearMonth + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "YearQuarter"){
+      m2 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "Year"){
+      m2 <- buildModelMatrices(~  -1 + Year + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    }
+    
   } else if(DATA == "survey"){
-    m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data=datatot)
+    if(TIME == "YearMonth"){
+      m2 <- buildModelMatrices(~ -1 + YearMonth + Ship + Depth, offset = quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "YearQuarter"){
+      m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "Year"){
+      m2 <- buildModelMatrices(~ -1 + Year + Ship + Depth, offset = quote(log(HaulDur)), data=datatot)
+    }
+    
   } else {
-    m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    if(TIME == "YearMonth"){
+      m2 <- buildModelMatrices(~ -1 + YearMonth + Ship + Data + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    } else if (TIME == "YearQuarter"){
+      m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "Year"){
+      m2 <- buildModelMatrices(~ -1 + Year + Ship + Data + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    }
   }
   system.time( env2 <- fit_model(data, m2, with_static_field = F, profile=F) )
 }
+
+
+
+
+
 
 
 
@@ -750,10 +789,47 @@ if (MODEL_FORMULA == "m2") {
   } else if(DATA == "survey"){
     m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data = datatot)
   } else {
-    m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, static = ~ -1 + depth, ~ random = -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
+    m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, static = ~ -1 + depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
   }
   system.time( env3 <- fit_model(data, m3, with_static_field = F, profile=F) )
 }
+
+
+
+
+if (MODEL_FORMULA == "m3") {
+  if(DATA == "commercial"){
+    if(TIME == "YearMonth"){
+      
+      m3 <- buildModelMatrices(~  -1 + YearMonth + metiers + Depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
+    } else if(TIME == "YearQuarter"){
+      m3 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
+    } else if(TIME == "Year"){
+      m3 <- buildModelMatrices(~  -1 + Year + metiers + Depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
+    }
+    
+  } else if(DATA == "survey"){
+    if(TIME == "YearMonth"){
+      m3 <- buildModelMatrices(~ -1 + YearMonth + Ship + Depth, offset = quote(log(HaulDur)), data = datatot)
+    } else if(TIME == "YearQuarter"){
+      m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data = datatot)
+    } else if(TIME == "Year"){
+      m3 <- buildModelMatrices(~ -1 + Year + Ship + Depth, offset = quote(log(HaulDur)), data = datatot)
+    }
+    
+  } else {
+    if(TIME == "YearMonth"){
+      m3 <- buildModelMatrices(~ -1 + YearMonth + Ship + Data + metiers + Depth, static = ~ -1 + depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
+    } else if (TIME == "YearQuarter"){
+      m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, static = ~ -1 + depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
+    } else if(TIME == "Year"){
+      m3 <- buildModelMatrices(~ -1 + Year + Ship + Data + metiers + Depth, static = ~ -1 + depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
+    }
+  }
+  system.time( env3 <- fit_model(data, m3, with_static_field = F, profile=F) )
+}
+
+
 
 
 
@@ -764,12 +840,12 @@ if (MODEL_FORMULA == "m2") {
 # Extract the results
 #~~~~~~~~~~~~~~~~~~~~~~
 
-
+##env1, env2, env3, ....plug-in the number of as many model as you defined above
 env1$sdr #get TMB sdreport
 env1$s.fixed #get fixed-effect values
 env1$s.random
 
-# Replace env2 by the appropriate model ID that was run
+
 
 
 # Plotting
