@@ -675,10 +675,13 @@ datatot$Data <- factor(datatot$Data, rev(levels(datatot$Data))) #Make sure that 
 ## M1 ##
 #~~~~~~~
 
+#### Fixed effect on observation process (i.e., catchability)
+
 # Fixed effects on observation process: time-period (in both data sources), metiers (commercial data), Ship (survey data)
 # Fixed effects on latent process: None
 # Random effects: vessel ID (whenever commercial data is considered)
 # Offset: log(haul duration)
+
 
 if (MODEL_FORMULA == "m1") {
   if(DATA == "commercial"){
@@ -718,22 +721,13 @@ if (MODEL_FORMULA == "m1") {
 ## M2 ##
 #~~~~~~~
 
+#### Fixed-effect of depth on catchability
+
 # Fixed effects on observation process: time-period (in both data sources), metiers (commercial data), Ship (survey data), depth
 # Fixed effects on latent process: None
 # Random effects: vessel ID (whenever commercial data is considered)
 # Offset: log(haul duration)
-# if (MODEL_FORMULA == "m2") {
-#   if(DATA == "commercial"){
-#     m2 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
-#   } else if(DATA == "survey"){
-#     m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data=datatot)
-#   } else {
-#     m2 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
-#   }
-#   system.time( env2 <- fit_model(data, m2, with_static_field = F, profile=F) )
-# }
-
-
+# ( Same as m1, but including an environmental covariate in the observation process. )
 
 if (MODEL_FORMULA == "m2") {
   if(DATA == "commercial"){
@@ -769,33 +763,16 @@ if (MODEL_FORMULA == "m2") {
 
 
 
-
-
-
-
-
-
 #~~~~~~~
 ## M3 ##
 #~~~~~~~
+
+#### Fixed effect of depth on both observation and abundance processes
 
 # Fixed effects on observation process: time-period (in both data sources), metiers (commercial data), Ship (survey data)
 # Fixed effects on latent process: Depth
 # Random effects: vessel ID (whenever commercial data is considered)
 # Offset: log(haul duration)
-if (MODEL_FORMULA == "m2") {
-  if(DATA == "commercial"){
-    m3 <- buildModelMatrices(~  -1 + YearQuarter + metiers + Depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
-  } else if(DATA == "survey"){
-    m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Depth, offset = quote(log(HaulDur)), data = datatot)
-  } else {
-    m3 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers + Depth, static = ~ -1 + depth, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data = datatot)
-  }
-  system.time( env3 <- fit_model(data, m3, with_static_field = F, profile=F) )
-}
-
-
-
 
 if (MODEL_FORMULA == "m3") {
   if(DATA == "commercial"){
