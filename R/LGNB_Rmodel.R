@@ -631,46 +631,6 @@ attr(datatot, "static") <- covariates
 
 
 
-
-# 7.4) Model matrix
-#~~~~~~~~~~~~~~~~~~~
-# Build Matrices for the model
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-buildModelMatrices <- function(fixed, random=NULL, ..., offset=NULL, static=NULL, data) {
-  mm <- function(formula, data) {
-    ##myna<-function(object,...){object[is.na(object)]<-0; object}
-    mf <- model.frame(formula, data, na.action=na.pass)
-    ans <- model.matrix(formula, mf)
-    ans[is.na(ans)] <- 0
-    ans
-  }
-  Xf <- mm(fixed, data=data)
-  if(!is.null(random))
-    Xr <- lapply(list(random, ...), mm, data=data)
-  else
-    Xr <- list(matrix(NA, nrow(Xf), 0))
-  if(!is.null(static))
-    Xs <- mm(static, data=attr(data,"static"))
-  else
-    #Xs <- matrix(NA, 0, 0) # Kasper's version; works on my local machine but not in hpc
-    Xs <- matrix(NA, nrow(gr), 0) #works on both local machine and hpc
-  nr <- sapply(Xr, ncol)
-  nf <- ncol(Xf)
-  beta <- rep(0, nf)
-  beta_r <- rep(0, sum(nr))
-  beta_r_fac <- factor(rep(1:length(nr), nr))
-  beta_r_logsd <- rep(0, nlevels(beta_r_fac))
-  offset <- eval(offset, data)
-  ns <- ncol(Xs)
-  beta_s <- rep(0, ns)
-  if(!is.null(offset)) stopifnot(is.numeric(offset)) else offset <- numeric(0)
-  list(Xf=cbind(Xf, do.call("cbind", Xr)), Xs=Xs, nr=nr, nf=nf, ns=ns, beta=beta, beta_s=beta_s, beta_r=beta_r, beta_r_fac=beta_r_fac, beta_r_logsd=beta_r_logsd, offset=offset)
-}
-
-
-
-
-
 #><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
 
 
