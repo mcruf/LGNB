@@ -7,7 +7,22 @@
 #                                                                                        #
 ##########################################################################################
 
-# last update: April 2020
+# last update: April 2021
+
+
+# To keep track of all the processes in a logical and concise manner,
+# the following script was divided into 8 different sections:
+
+## Section 1: Default inputs
+## Section 2: Load data files & packages
+## Section 3: Binding data files 
+## Section 4: Grid building
+## Section 5: Discretize commercial hauls 
+## Section 6: Defining the preferential sampling, if present 
+## Section 7: TMB processing 
+## Section 8: Fitting the LGNB model 
+
+
 
 
 
@@ -18,6 +33,7 @@ STOCK <- c("WBS","KAT")[1] # Specify to which stock the data should be subsetted
 DATA  <- c("commercial", "survey", "both") [3] # Specify the desired input data for the model; default is commercial data-
 RESPONSE <- c("SizeGroup","AgeGroup","Cohort")[2] #Choose whether the model is applied for each SizeGroup, AgeGroup, or on a Cohort basis (when Nage).Default is set to SizeGroup.
 PS <- c("No","One","Two")[1] #Define how the sampling nature should be accounted for
+TIME <- c("YearMonth","YearQuarter","Year")[2] #Define the temporal resolution; default is set on a monthly basis
 
 
 # @ PS = "No" -> For both datasets (commercial, survey), no preferential sampling is accounted for.
@@ -27,7 +43,7 @@ PS <- c("No","One","Two")[1] #Define how the sampling nature should be accounted
 
 
 
-# Specify the model structure; default model is m2 (see lines ... to ...) for either size groups, age groups or cohort
+# Specify the model structure; default model is m2for either size groups, age groups or cohort
 # Default size group is 5 (S5), age group is 3 (A3) and cohort from 2005.
 if(RESPONSE == "SizeGroup"){
   MODEL_CONFIG <- "m1_S5" #Default model and SizeGroup 5
@@ -39,6 +55,7 @@ if(RESPONSE == "SizeGroup"){
 
 MODEL_CONFIG <- strsplit(MODEL_CONFIG, "_")[[1]]
 MODEL_FORMULA <- MODEL_CONFIG[1]
+
 
 if(RESPONSE == "SizeGroup"){
   SIZE <- MODEL_CONFIG[2]
@@ -84,16 +101,16 @@ comFULL$stock <- ifelse(comFULL$Area=="21","KAT","WBS")
 
 
 # Subset data for a particular stock
-commercial <- if(RESPONSE == "Cohort"){
-                  t <- as.numeric(as.character(comFULL$Year))
-                  tmax <- as.factor(max(t))
-                  
-                  yearclass <- as.numeric(as.character(YEARCLASS))
-                  tperiod <- as.factor(c(yearclass:as.numeric(as.character(tmax))))
-                
-                subset(comFULL, stock == STOCK & Year %in% tperiod) #Setting stock based on ICES area (KAT=21, WBS=22-24)
-            } else{
-                subset(comFULL, stock == STOCK)
+commercial <- if(RESPONSE == "Cohort"){ #Subsetting when response is on a cohort level also subsets the data automatically for the time-period related to the yearclass being analyzed
+  t <- as.numeric(as.character(comFULL$Year))
+  tmax <- as.factor(max(t))
+  
+  yearclass <- as.numeric(as.character(YEARCLASS))
+  tperiod <- as.factor(c(yearclass:as.numeric(as.character(tmax))))
+  
+  subset(comFULL, stock == STOCK & Year %in% tperiod) #Setting stock based on ICES area (KAT=21, WBS=22-24)
+} else{
+  subset(comFULL, stock == STOCK)
 }
 
 
@@ -117,22 +134,20 @@ survey <- readRDS("C:/Users/mruf/Documents/LGNB/Data/survey.rds")
 survey$stock <- ifelse(survey$Area=="21","KAT","WBS") #Setting stock based on ICES area (KAT=21, WBS=22-24)
 
 
+
 # Subset data for a particular time frame
-survey <- filter(survey, stock == STOCK)
-
-
 survey <- if(RESPONSE == "Cohort"){
-                    t <- as.numeric(as.character(survey$Year))
-                 tmax <- max(t)
-   
-            yearclass <- as.numeric(as.character(YEARCLASS))
-              tperiod <- as.factor(c(yearclass:tmax))
+  t <- as.numeric(as.character(survey$Year))
+  tmax <- max(t)
   
-              subset(survey, stock == STOCK & Year %in% tperiod) #Setting stock based on ICES area (KAT=21, WBS=22-24)
-          } else{
-              
-              subset(survey, stock == STOCK)
-          }
+  yearclass <- as.numeric(as.character(YEARCLASS))
+  tperiod <- as.factor(c(yearclass:tmax))
+  
+  subset(survey, stock == STOCK & Year %in% tperiod) #Setting stock based on ICES area (KAT=21, WBS=22-24)
+} else{
+  
+  subset(survey, stock == STOCK)
+}
 
 
 
@@ -280,9 +295,23 @@ if(RESPONSE == "SizeGroup"){
 
 # 3.4) Create equally time spaced intervals - VERY important for the AR1 process
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-datatot$Year <- as.numeric(as.character(datatot$Year))
-timeLevels <- as.vector(t(outer(min(datatot$Year):max(datatot$Year), 1:4, paste)))
-datatot$YearQuarter <- factor(paste(datatot$Year, datatot$Quarter), levels=timeLevels)
+
+datatot$Year <- as.numeric(as.character(datatot$Year)) #Set as numeric to run the lines below
+
+
+if(TIME=="YearMonth"){
+  
+  timeLevels <- as.vector(t(outer(min(datatot$Year):max(datatot$Year), 1:12, paste)))
+  datatot$YearMonth <- factor(paste(datatot$Year, datatot$Month), levels=timeLevels)
+  
+} else if(TIME=="YearQuarter"){
+  timeLevels <- as.vector(t(outer(min(datatot$Year):max(datatot$Year), 1:4, paste)))
+  datatot$YearQuarter <- factor(paste(datatot$Year, datatot$Quarter), levels=timeLevels)
+  
+} 
+
+
+datatot$Year <- as.factor(datatot$Year) #Set back to factor
 
 
 
@@ -311,9 +340,9 @@ df <- data.frame(lon=comFULL$lon_mean, lat=comFULL$lat_mean) #temporary df
 # 4.2) Building the grid
 #~~~~~~~~~~~~~~~~~~~~~~~~~
 if(.Platform$OS.type == "windows") setwd("C:/Users/mruf/Documents/LGNB/Shapefiles")
-grid <- gridConstruct2(df,km=30,scale=1.2)
+grid <- gridConstruct2(df,km=20,scale=1.2)
 gr <- gridFilter2(grid,df,icesSquare = T,connected=T) # filter out unnecessary spatial extensions
-# plot(gr)
+# shape <- readOGR(".", "CDK2_cutted"); plot(gr); plot(shape,add=T,col="grey70")
 
 
 
@@ -345,7 +374,7 @@ mEnd <- matrix(c(dat$end_long,dat$end_lat), ncol=2)
 
 # 5.3) Interpolate points at regular distance (default is 1km)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-nbpts <- floor(distance(dat$start_long,dat$start_lat, dat$end_long, dat$end_lat) / 1) # one point every 1 km ~ reasonable for a 5x5 km grid
+nbpts <- floor(distance(dat$start_long,dat$start_lat, dat$end_long, dat$end_lat) / 1) #one point every 1 km
 inter_pts <- gcIntermediate(mStart,mEnd, n=nbpts, addStartEnd=FALSE) 
 
 
@@ -448,9 +477,11 @@ dyn.load(dynlib("LGNB"))
 # 7.3.1) Linking R data to TMB data
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 data <- list(
-  time = datatot$YearQuarter[rowid],
-  gf = tmp2$gf  ,              
-  rowid = rowid  ,
+  time = if(TIME=="Year") {datatot$Year[rowid]} #Yearly resolution
+  else if(TIME=="YearQuarter") {datatot$YearQuarter[rowid]} #Quarterly resolution
+  else if(TIME=="YearMonth"){datatot$YearMonth[rowid]}, #Monthly resolution
+  gf = tmp2$gf,              
+  rowid = rowid,
   response = datatot$Response,
   Q0 = Q0,
   I = I,
@@ -481,7 +512,6 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE, profile=
     ## Stuff for prediction: Dummy dataset that matches the space time grid:
     ## Xpredict: design matrix for prediction
     ## Apredict: Area factor for prediction
-    ##DFpredict <- expand.grid(gf=levels(data$gf), time=levels(data$time))
     DFpredict <- expand.grid(gf=levels(data$gf), time=levels(data$time))
     ## FIXME: We should include depth and covariates here !
     ##        But that requires depth on the entire grid...
@@ -492,10 +522,6 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE, profile=
     data$Xpredict <- tmp
     data$Apredict <- factor(icesSquare(gr))
   }
-  ## Perhaps we want measure all indices relative to a fixed reference square:
-  ##   plot(cod, plot.response = FALSE)
-  ## "42G1" seems appropriate
-  ## data$refindex <- which(levels(data$Apredict) == "42G1")
   data$refindex <- 0 ## <-- Disable
   
   parameters <- list(
@@ -596,6 +622,8 @@ fit_model <- function(data, model_struct=NULL, with_static_field=FALSE, profile=
 # NOTE: Ignore this step if you want to predict the abundance only 
 # as a function of the spatio-temporal correlation paramaters
 
+
+source("C:/Users/mruf/Documents/LGNB/R/Extract_Covariates_Prediction.R")
 covariates <- readRDS("~/pred_covariates.rds")
 
 attr(datatot, "static") <- covariates
@@ -694,11 +722,32 @@ datatot$Data <- factor(datatot$Data, rev(levels(datatot$Data))) #Make sure that 
 
 if (MODEL_FORMULA == "m1") {
   if(DATA == "commercial"){
-    m1 <- buildModelMatrices(~  -1 + YearQuarter + metiers, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    if(TIME == "YearMonth"){
+      
+      m1 <- buildModelMatrices(fixed = ~  -1 + YearMonth + metiers, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "YearQuarter"){
+      m1 <- buildModelMatrices(fixed = ~  -1 + YearQuarter + metiers, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "Year"){
+      m1 <- buildModelMatrices(fixed = ~  -1 + Year + metiers, random = ~ -1 + VESSELID, offset = quote(log(HaulDur)), data=datatot)
+    }
+    
   } else if(DATA == "survey"){
-    m1 <- buildModelMatrices(~ -1 + YearQuarter + Ship, offset = quote(log(HaulDur)), data=datatot)
+    if(TIME == "YearMonth"){
+      m1 <- buildModelMatrices(fixed = ~ -1 + YearMonth + Ship, offset = quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "YearQuarter"){
+      m1 <- buildModelMatrices(fixed = ~ -1 + YearQuarter + Ship, offset = quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "Year"){
+      m1 <- buildModelMatrices(fixed = ~ -1 + Year + Ship, offset = quote(log(HaulDur)), data=datatot)
+    }
+    
   } else {
-    m1 <- buildModelMatrices(~ -1 + YearQuarter + Ship + Data + metiers, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    if(TIME == "YearMonth"){
+      m1 <- buildModelMatrices(fixed = ~ -1 + YearMonth + Ship + Data + metiers, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    } else if (TIME == "YearQuarter"){
+      m1 <- buildModelMatrices(fixed = ~ -1 + YearQuarter + Ship + Data + metiers, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    } else if(TIME == "Year"){
+      m1 <- buildModelMatrices(fixed = ~ -1 + Year + Ship + Data + metiers, random = ~ -1 + VESSELID, offset= quote(log(HaulDur)), data=datatot)
+    }
   }
   system.time( env1 <- fit_model(data, m1, with_static_field = F, profile=F) )
 }
