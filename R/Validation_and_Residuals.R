@@ -15,6 +15,7 @@
 
 
 # last update: April 2021
+# Original code developed by Kasper Kristensen, and further adapted by Marie-Christine Rufener
 
 
 #><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><
@@ -45,7 +46,7 @@ dyn.load(dynlib("LGNB"))
 # 1.1) Get results
 #~~~~~~~~~~~~~~~~~~~~
 
-#setwd("~/LGNB/src")
+#setwd("~/LGNB/Results")
 
 ## Survey model
 load("res_m1_A3_survey_No_alpha_YearQuarter_.RData")
