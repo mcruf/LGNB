@@ -340,8 +340,8 @@ df <- data.frame(lon=comFULL$lon_mean, lat=comFULL$lat_mean) #temporary df
 # 4.2) Building the grid
 #~~~~~~~~~~~~~~~~~~~~~~~~~
 if(.Platform$OS.type == "windows") setwd("C:/Users/mruf/Documents/LGNB/Shapefiles")
-grid <- gridConstruct2(df,km=20,scale=1.2)
-gr <- gridFilter2(grid,df,icesSquare = T,connected=T) # filter out unnecessary spatial extensions
+grid <- GridConstruct(df,km=20,scale=1.2) #Modified function from original gridConstruct. See "utilities.R" to see changes
+gr <- GridFilter(grid,df,icesSquare = T,connected=T) # filter out unnecessary spatial extensions; #Modified function from original gridConstruct. See "utilities.R" to see changes
 # shape <- readOGR(".", "CDK2_cutted"); plot(gr); plot(shape,add=T,col="grey70")
 
 

@@ -148,9 +148,11 @@ mybind <- function(x, y) {
 
 # Constructing grid based on existing shapefile
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#Modified from K. Kristensen's original function from gridConstruct package
+# https://github.com/kaskr/gridConstruct/blob/master/gridConstruct/R/grid.R
 
 # Use this function if using the contracted versions of the DK shapefile;
-gridConstruct2 <- function(d, km,scale,nearestObs){
+GridConstruct2 <- function(d, km,scale,nearestObs){
   ## Grid
   gr <- gridConstruct::gridConstruct(d=d,km=km,scale=scale,nearestObs=nearestObs,filter=FALSE)
   ## Read shape file data
@@ -196,6 +198,10 @@ gridConstruct2 <- function(d, km,scale,nearestObs){
 # based on the data points. Because we want to extend the grid a bit further to the actual ICESsquares that are based on the datapoints,
 # I did a quick and dirty manual adaptation, where additional ICESsquares were added.
 
+#Modified from K. Kristensen's original function from gridConstruct package
+# https://github.com/kaskr/gridConstruct/blob/master/gridConstruct/R/grid.R
+
+
 Kattegat <- c("44G0","44G1","43G0","43G1","43G2","42G0","42G1","42G2","41G0","41G1","41G2") #subdivision 21
 Belt <- c("40F9","40G0","40G1","39F9","39G0","39G1","38F9","38G0","38G1","37G0","37G1") #subdivision 22
 Sound <- c("40G2") #subdivision 23
@@ -214,7 +220,7 @@ studyarea <- c(Kattegat,Belt,Sound,Baltic_Sea,Extrasquares)
 ##' @param connected Keep only largest connected component.
 ##' @return Filtered grid object
 ##' @rdname grid
-gridFilter2 <- function(grid,data,
+GridFilter <- function(grid,data,
                        icesSquare=FALSE,
                        nearestObs=Inf,
                        wet=FALSE,
