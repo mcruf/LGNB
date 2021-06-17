@@ -382,6 +382,9 @@ inter_pts <- gcIntermediate(mStart,mEnd, n=nbpts, addStartEnd=FALSE)
 # 5.4) Associate the discretized hauls to the grid ID 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Note that the haul Id MUST be a factor, where each level is the frequency of a particular haul crossing a specific grid ID
+stopifnot(is.factor(datatot$HLID))
+
+
 tmp <- lapply(1:length(inter_pts), function(i) {
   print(i)
   x <- inter_pts[[i]]
