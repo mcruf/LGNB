@@ -428,24 +428,6 @@ SupportAreaMatrix    <- ifelse(SupportAreaMatrix==0,FALSE,TRUE)
 
 
 
-################FIXME###
-# #### For multiple support areas
-# # Applied when using either one alpha parameter (collapsing all alphas into one), 
-# # or multiple alphas for commercial data, and one alpha parameter for survey)
-# 
-# if(SUPPORT_AREA == "Several"){
-#   datatot$split_area2 <- ifelse(as.character(datatot$Data)=="commercial", as.character(datatot$Quarter), "survey") #Same configuration as model with a single alpha parameter, where we have only one single support area describing the commercial data.
-#   datatot$split_area2 <- as.factor(datatot$split_area2)
-#   
-#   kk2 <- tmp2; kk2$split <- datatot$split_area2[tmp2$rowID]
-#   SupportAreaMatrix2 <- table(kk2$gf, kk2$split)
-#   SupportAreaMatrix2[] <- SupportAreaMatrix2>0
-#   SupportAreaMatrix2 <- ifelse(SupportAreaMatrix2==0,FALSE,TRUE)
-# }
-#########################
-
-
-
 # 6.2) Setting support areas based on chosen input
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # if(DATA == "commercial" || DATA == "both"){
